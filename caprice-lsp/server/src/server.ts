@@ -67,6 +67,7 @@ function restartChecker(): void {
 }
 
 ocamlChecker = startChecker();
+process.on('exit', () => ocamlChecker.kill());
 
 function updateDocument(params: DidChangeTextDocumentParams): TextDocument | undefined {
 	const doc = docs.get(params.textDocument.uri);
