@@ -3,13 +3,13 @@
 	"description": "A language server for Caprice",
 	"author": "Hanliang Xu",
 	"license": "MIT",
-	"version": "1.0.0",
+	"version": "1.0.1",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/JHU-PL-Lab/caprice-lang/tree/main"
 	},
-	"publisher": "JHU PL Lab",
-	"categories": [],
+	"publisher": "JHUPLLab",
+	"categories": ["Programming Languages"],
 	"keywords": [
 		"multi-root ready"
 	],
@@ -29,15 +29,9 @@
 		],
 		"configuration": {
 			"type": "object",
-			"title": "Example configuration",
+			"title": "Caprice",
 			"properties": {
-				"languageServerExample.maxNumberOfProblems": {
-					"scope": "resource",
-					"type": "number",
-					"default": 100,
-					"description": "Controls the maximum number of problems produced by the server."
-				},
-				"languageServerExample.trace.server": {
+				"caprice.trace.server": {
 					"scope": "window",
 					"type": "string",
 					"enum": [
