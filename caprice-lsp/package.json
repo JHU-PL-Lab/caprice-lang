@@ -3,7 +3,7 @@
 	"description": "A language server for Caprice",
 	"author": "Hanliang Xu",
 	"license": "MIT",
-	"version": "1.0.1",
+	"version": "1.0.2",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/JHU-PL-Lab/caprice-lang/tree/main"
@@ -14,16 +14,17 @@
 		"multi-root ready"
 	],
 	"engines": {
-		"vscode": "^1.100.0"
+		"vscode": "^1.74.0"
 	},
 	"activationEvents": [
 		"onLanguage:caprice"
 	],
+	"extensionKind": ["workspace"],
 	"main": "./client/out/extension",
 	"contributes": {
 		"commands": [
 			{
-				"command": "caprice.toggleTypeChecking",
+				"command": "caprice.toggleTypechecking",
 				"title": "Caprice: Toggle Type Checking"
 			}
 		],
