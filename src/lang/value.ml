@@ -385,6 +385,10 @@ module Make (Atom_cell : Utils.Types.P1) = struct
     let non_contractive_type (t : tval) : string =
       Printf.sprintf "Bad type: %s is not contractive."
         (to_string t)
+
+    let splayed_rec_fun (v_func : dval) (v_arg : any) : string =
+      Printf.sprintf "Called rec fun %s with symbolic value %s while splaying"
+        (to_string v_func) (any_to_string v_arg)
   end
 
   module Match_result = struct

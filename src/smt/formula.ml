@@ -150,7 +150,7 @@ end = struct
       (* not (e1 < e2) = (e2 <= e1) *)
       Binop (Less_than_eq, e2, e1)
     | Binop (Less_than_eq, e1, e2) ->
-      (* not (e1 <= e2) = (e1 < e2) *)
+      (* not (e1 <= e2) = (e2 < e1) *)
       Binop (Less_than, e2, e1)
     | Binop (Or, e1, e2) -> and_ [ not_ e1 ; not_ e2 ] (* it's easier in general to work with "and" *)
     | _ -> Not e
@@ -189,6 +189,32 @@ let transform (type a) (module X : S) (e : (a, 'k) t) : (a, 'k) X.t =
     | Binop (op, e1, e2) -> X.binop op (transform e1) (transform e2)
   in
   transform e
+
+let rec eval
+  : type a. default:('c. ('c, 'k) Symbol.t -> 'c) -> 'k Model.t -> (a, 'k) t -> a
+  = fun ~default model e ->
+  match e with
+  | Key s ->
+    begin match model.value s with
+    | Some a -> a
+    | None -> (default s)
+    end
+  | Const_int i -> i
+  | Const_bool b -> b
+  | Not e' -> not (eval ~default model e')
+  | And e_ls ->
+    List.fold_left (fun acc e ->
+      acc && eval ~default model e
+    ) true e_ls
+  | Binop (type b) (op, e1, e2 : (b * b * a) Binop.t * (b, 'k) t * (b, 'k) t) ->
+    Binop.to_arithmetic op (eval ~default model e1) (eval ~default model e2)
+
+let default_eval model e =
+  eval model e ~default:(fun (type a) (s : (a, 'k) Symbol.t) : a ->
+    match s with
+    | I _ -> 0
+    | B _ -> true
+  )
 
 let rec subst
   : type a b. a -> (a, 'k) Symbol.t -> (b, 'k) t  -> (b, 'k) t

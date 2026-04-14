@@ -6,6 +6,9 @@ let format_span (span : Lang.Ast.pos_span) =
 let print_pending span =
   Printf.printf "pending:%s\n%!" (format_span span)
 
+let print_splay_error span msg =
+  Printf.printf "splay_error:%s:%s\n%!" (format_span span) msg
+
 let print_answer span answer =
   let pos = format_span span in
   match answer with

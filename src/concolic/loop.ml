@@ -53,53 +53,52 @@ let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) :
   collect [] Exhausted runs
 
 module Default_Z3 = Overlays.Typed_z3.Default
-module Simple_solver = Smt.Solve.Simplify (Smt.Solve.Default)
-module Z3_solver = Smt.Solve.Specialize (Simple_solver) (Default_Z3)
+let solve = Smt.Solve.simplify (Smt.Solve.direct_solve (module Default_Z3))
 
 module Make (Y : sig val yield : unit -> unit end) = struct
   let begin_loop ~(options : Options.t) (pgm : Lang.Ast.program) : Answer.t * run_count:int =
     let run_count = Utils.Counter.create () in
 
-  (* Run the program concolically in a loop *)
-  let run do_splay =
-    let eval =
-      Eval.eval pgm ~max_step:options.max_step ~do_splay
-        ~do_wrap:options.do_wrap
-    in
-    (* explore the target queue *)
-    let rec explore tq =
-      let () = Utils.Time.yield_to_timer () in
-      let () = Y.yield () in
-      match Target_queue.pop tq with
-      | Some (target, tq) -> handle_target target tq
-      | None -> Answer.Exhausted
-
-    (* solve and run the target, or continue exploring if unsat *)
-    and handle_target target tq =
-      match Z3_solver.solve target.target_formula with
-      | Sat model -> handle_model target tq model
-      | Unknown -> Answer.min Answer.Unknown (explore tq)
-      | Unsat -> explore tq
-
-    (* evaluate with the model, then continue exploring *)
-    and handle_model target tq model =
-      let run_num = Utils.Counter.next run_count in
-      let default_int, default_bool =
-        if run_num = 0 then
-          (fun () -> 0), (fun () -> false)
-        else
-          (fun () -> Random.int_in_range ~min:(-10) ~max:10), Random.bool
+    (* Run the program concolically in a loop *)
+    let run do_splay =
+      let eval =
+        Eval.eval pgm ~max_step:options.max_step ~do_splay
+          ~do_wrap:options.do_wrap
       in
-      let ienv = Input_env.extend target.i_env (Input_env.of_model model) in
-      let runs = eval ienv target ~default_int ~default_bool in
-      match collect_logged_runs runs ~max_tree_depth:options.max_tree_depth with
-      | `Quit answer ->
-        answer
-      | `Cont (targets, answer) ->
-        Answer.min answer (explore (Target_queue.push_list tq targets))
+      (* explore the target queue *)
+      let rec explore tq =
+        let () = Utils.Time.yield_to_timer () in
+        let () = Y.yield () in
+        match Target_queue.pop tq with
+        | Some (target, tq) -> handle_target target tq
+        | None -> Answer.Exhausted
+
+      (* solve and run the target, or continue exploring if unsat *)
+      and handle_target target tq =
+        match solve target.target_formula with
+        | Sat model -> handle_model target tq model
+        | Unknown -> Answer.min Answer.Unknown (explore tq)
+        | Unsat -> explore tq
+
+      (* evaluate with the model, then continue exploring *)
+      and handle_model target tq model =
+        let run_num = Utils.Counter.next run_count in
+        let default_int, default_bool =
+          if run_num = 0 then
+            (fun () -> 0), (fun () -> false)
+          else
+            (fun () -> Random.int_in_range ~min:(-10) ~max:10), Random.bool
+        in
+        let ienv = Input_env.extend target.i_env (Input_env.of_model model) in
+        let runs = eval ienv target ~default_int ~default_bool in
+        match collect_logged_runs runs ~max_tree_depth:options.max_tree_depth with
+        | `Quit answer ->
+          answer
+        | `Cont (targets, answer) ->
+          Answer.min answer (explore (Target_queue.push_list tq targets))
+      in
+      explore Target_queue.initial
     in
-    explore Target_queue.initial
-  in
 
     let run_splaying_modes () =
       match options.splay with

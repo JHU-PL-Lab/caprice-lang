@@ -23,13 +23,13 @@ let rec server_loop ~(options : Concolic.Options.t) () =
   with
   | End_of_file -> ()
 
-let typecheck_lsp_main =
-  Cmdliner.Cmd.v (Cmdliner.Cmd.info "typecheck_lsp") @@
+let caprice_typecheck_lsp_main =
+  Cmdliner.Cmd.v (Cmdliner.Cmd.info "caprice_typecheck_lsp") @@
   let open Cmdliner.Term.Syntax in
   let+ options = Concolic.Options.of_argv in
   server_loop ~options ()
 
 let () =
-  match Cmdliner.Cmd.eval_value' typecheck_lsp_main with
+  match Cmdliner.Cmd.eval_value' caprice_typecheck_lsp_main with
   | `Ok _ -> ()
   | `Exit i -> exit i

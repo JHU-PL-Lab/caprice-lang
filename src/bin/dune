@@ -1,5 +1,5 @@
 (executables
- (names typecheck typecheck_lsp bench)
+ (names typecheck caprice_typecheck_lsp bench)
  (libraries
   ; internal
   lang

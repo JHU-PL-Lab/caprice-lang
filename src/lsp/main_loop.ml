@@ -37,12 +37,26 @@ let round_robin (fs : work_item list) : unit =
   in
   dequeue ()
 
-let ceval_many ~options pgms =
+let ceval_many ~(options : Concolic.Options.t) pgms =
   round_robin (
     List.map (fun (span, pgm) ->
       { span ; task = fun () ->
           Print.print_pending span;
-          Done (M.begin_ceval ~print_outcome:false ~options pgm) }
+          match options.splay with
+          | Fallback ->
+            let splay_answer =
+              M.begin_ceval ~print_outcome:false
+                ~options:{ options with splay = Splay_only } pgm
+            in
+            begin match splay_answer with
+            | Grammar.Answer.Found_error msg ->
+              let () = Print.print_splay_error span msg in
+              Done (M.begin_ceval ~print_outcome:false
+                ~options:{ options with splay = Never_splay } pgm)
+            | answer -> Done answer
+            end
+          | _ ->
+            Done (M.begin_ceval ~print_outcome:false ~options pgm) }
     ) pgms
   )
 

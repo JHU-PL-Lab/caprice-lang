@@ -18,6 +18,7 @@ export type OcamlMessage =
   | { tag: 'exhausted_pruned'; range: Range }
   | { tag: 'done' }
   | { tag: 'parse_error';      line: number; col: number; tok: string }
+  | { tag: 'splay_error';      range: Range; msg: string }
 
 function parseRange(parts: string[]) {
   return {
@@ -39,6 +40,7 @@ export function parseLine(line: string): OcamlMessage | null {
     case 'unknown': return { tag: 'unknown', ...parseRange(parts) };
     case 'exhausted_pruned': return { tag: 'exhausted_pruned', ...parseRange(parts) };
     case 'done': return { tag: 'done' };
+    case 'splay_error': return { tag: 'splay_error', ...parseRange(parts), msg: parts.slice(5).join(':') };
     default: return null;
   }
 }

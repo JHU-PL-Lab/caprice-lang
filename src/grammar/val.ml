@@ -98,10 +98,10 @@ let rec does_wrap_matter : typeval t -> bool = function
 
 module X = struct
   type 'a t =
-    | Value of ('a * bool Formula.t)
+    | Value of 'a * bool Formula.t
     | ShapeMismatch
 
-  let of_cdata d = Value d
+  let of_cdata (v, s) = Value (v, s)
   let make b = Value (b, Smt.Formula.const_bool b)
 
   (* Short circuit if the symbolic boolean is false. Think like "bind" *)

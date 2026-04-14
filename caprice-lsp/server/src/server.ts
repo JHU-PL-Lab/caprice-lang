@@ -91,9 +91,9 @@ function writeFramedMessage(message: CheckerPacket): void {
 
 connection.onInitialize((params: InitializeParams) => {
 	const rootUri = params.workspaceFolders?.[0]?.uri;
-	const bundledPath = path.join(__dirname, '..', '..', 'typecheck_lsp.exe');
+	const bundledPath = path.join(__dirname, '..', '..', 'caprice_typecheck_lsp.exe');
 	if (rootUri) {
-		const workspacePath = path.join(fileURLToPath(rootUri), 'typecheck_lsp.exe');
+		const workspacePath = path.join(fileURLToPath(rootUri), 'caprice_typecheck_lsp.exe');
 		typecheckerPath = fs.existsSync(workspacePath) ? workspacePath : bundledPath;
 	} else {
 		typecheckerPath = bundledPath;

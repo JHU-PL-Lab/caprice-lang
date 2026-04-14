@@ -344,10 +344,7 @@ let eval
       local' (Env.set param v_arg env) (eval captured)
     | VFunFix { fvar ; param ; closure = { captured ; env } } ->
       if do_splay && is_any_symbolic v_arg then
-        mismatch (
-          Printf.sprintf "Called rec fun with symbolic value %s while splaying"
-            (Val.any_to_string v_arg)
-          )
+        mismatch @@ splayed_rec_fun v_func v_arg
       else
         local' (
           Env.set fvar (Any self_fun) env

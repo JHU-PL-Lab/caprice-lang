@@ -30,12 +30,10 @@ type ('a, 'x) t =
       accept:('a -> 'state -> Step.t -> 'r) ->
       'state -> Step.t -> 'env -> 'ctx -> 'r
   } constraint 'x = < err : 'err ; env : 'env ; state : 'state ; ctx : 'ctx >
-  (* [@@unboxed] *)
+  [@@unboxed]
 (* With flambda and compiler flag O3, it is faster to unbox. In all other
   combinations (of regular compiler, O3, flambda without O3), it is faster
   to leave this boxed. *)
-(* There is a bug on the 5.5.0~alpha1 switch that means I have to box this type.
-  See OCaml issue #14603 *)
 
 let[@inline] bind (x : ('a, 'x) t) (f : 'a -> ('b, 'x) t) : ('b, 'x) t =
   { run = fun ~reject ~accept state step env ctx ->
