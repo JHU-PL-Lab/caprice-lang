@@ -8,7 +8,7 @@ Install the extension and open any `.caprice` file — type checking runs automa
 
 ## Typechecker binary
 
-The extension ships with a bundled `caprice_typecheck_lsp.exe`. If your workspace root contains a `caprice_typecheck_lsp.exe`, that one takes priority over the bundled version. This lets you run a locally built typechecker without reinstalling the extension.
+The extension expects `caprice_typecheck_lsp.exe` in your workspace root. If the binary is not found, the extension will show an error and type checking will be disabled.
 
 ## Tips
 

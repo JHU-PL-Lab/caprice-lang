@@ -3,13 +3,15 @@
 	"description": "A language server for Caprice",
 	"author": "Hanliang Xu",
 	"license": "MIT",
-	"version": "1.0.2",
+	"version": "1.0.3",
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/JHU-PL-Lab/caprice-lang/tree/main"
 	},
 	"publisher": "JHUPLLab",
-	"categories": ["Programming Languages"],
+	"categories": [
+		"Programming Languages"
+	],
 	"keywords": [
 		"multi-root ready"
 	],
@@ -19,7 +21,9 @@
 	"activationEvents": [
 		"onLanguage:caprice"
 	],
-	"extensionKind": ["workspace"],
+	"extensionKind": [
+		"workspace"
+	],
 	"main": "./client/out/extension",
 	"contributes": {
 		"commands": [

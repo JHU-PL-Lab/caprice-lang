@@ -91,14 +91,16 @@ function writeFramedMessage(message: CheckerPacket): void {
 
 connection.onInitialize((params: InitializeParams) => {
 	const rootUri = params.workspaceFolders?.[0]?.uri;
-	const bundledPath = path.join(__dirname, '..', '..', 'caprice_typecheck_lsp.exe');
 	if (rootUri) {
-		const workspacePath = path.join(fileURLToPath(rootUri), 'caprice_typecheck_lsp.exe');
-		typecheckerPath = fs.existsSync(workspacePath) ? workspacePath : bundledPath;
-	} else {
-		typecheckerPath = bundledPath;
+		typecheckerPath = path.join(fileURLToPath(rootUri), 'caprice_typecheck_lsp.exe');
 	}
-	ocamlChecker = startChecker();
+	if (!fs.existsSync(typecheckerPath)) {
+		connection.window.showErrorMessage(
+			"Caprice: caprice_typecheck_lsp.exe not found in workspace root."
+		);
+	} else {
+		ocamlChecker = startChecker();
+	}
 
 	const result: InitializeResult = {
 		capabilities: {
