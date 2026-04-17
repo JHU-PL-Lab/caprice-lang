@@ -1,0 +1,34 @@
+(* TEST
+  include refute;
+*)
+
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f must make sum = 10: (f (λn.4)) + (f (λy.y*2)) = 10
+  - f must make (f (λm.0)) = -1
+  - f can distinguish callbacks by calling with 2:
+      (λn.4) returns 4
+      (λy.y*2) returns 4
+      (λm.0) returns 0
+  - Counterexample strategy:
+      if callback(2) = 4 → return 5 (covers first two, sum = 10)
+      else → return -1 (covers third callback)
+  - Then f is called with callback that errors if w=2
+  - f must call it with 2 → triggers BUG
+*)
+let guarded_first_order (f : (int -> int) -> int) : int =
+  let sum = f (fun n -> 4) + f (fun y -> y * 2) in
+  if sum == 10 then
+    if f (fun m -> 0) == -1 then
+      f (fun w -> if w == 2 then error () (* BUG *) else 0)
+    else
+      0
+  else
+    0
+
+(* Counterexample to the above *)
+let guarded_first_order_ce g =
+  if g 2 == 4 then 5
+  else -1

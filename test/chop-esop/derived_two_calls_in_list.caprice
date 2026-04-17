@@ -1,0 +1,32 @@
+(* TEST
+  include refute;
+*)
+
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f receives a list of two functions: [const false, some predicate]
+  - f must look at the second function and distinguish:
+      (fun n -> n = 5) → return 55
+      (fun n -> n = 7) → return 1
+      (fun n -> n = 9) → return 20
+  - f can do this by calling the second function with 5, 7, 9 and checking results
+
+  This takes over 7 minutes in the CHOP ESOP POC implementation.
+*)
+let derived_two_calls_in_list (f : list (int -> bool) -> int) : int =
+  let r1 = f [ (fun n -> false) ; (fun n -> n == 5) ] in
+  let r2 = f [ (fun n -> false) ; (fun n -> n == 7) ] in
+  let r3 = f [ (fun n -> false) ; (fun n -> n == 9) ] in
+  if r1 == 55 && r2 == 1 && r3 == 20 then
+    error ()  (* BUG *)
+  else
+    0
+
+(* Counterexample to the above *)
+let derived_two_calls_in_list_ce g_lst =
+  let g = list_ref g_lst 1 in  (* get second element *)
+  if g 5 then 55
+  else if g 7 then 1
+  else 20

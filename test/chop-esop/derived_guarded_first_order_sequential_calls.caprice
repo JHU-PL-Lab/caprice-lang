@@ -1,0 +1,31 @@
+(* TEST
+  include refute;
+*)
+
+let omega _ = assume false
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - First, f must make (f (λn.4)) + (f (λy.y*2)) = 10
+    - e.g., f always calls its callback with 2: 4 + 4 = 8 ✗
+    - e.g., f always calls its callback with 3: 4 + 6 = 10 ✓
+    - But wait, if f calls with 3: third callback loops (x≠2 → omega)
+    - So f must call with 2 for callbacks 3 and 4
+    - For sum=10: f returns 5 each time (ignoring callback), sum = 5+5 = 10 ✓
+  - Then f is called with callback that requires x=2 (else loops)
+  - Then f is called with callback that errors if w=2
+  - f must call both with 2 → triggers BUG
+*)
+let derived_guarded_first_order_sequential_calls (f : (int -> int) -> int) : int =
+  let sum = f (fun n -> 4) + f (fun y -> y * 2) in
+  if sum == 10 then
+    let _ = f (fun x -> if x <> 2 then omega () else 0) in
+    f (fun w -> if w == 2 then error () (* BUG *) else 0)
+  else
+    0
+
+(* Counterexample to the above *)
+let derived_guarded_first_order_sequential_calls_ce g =
+  let _ = g 2 in
+  5

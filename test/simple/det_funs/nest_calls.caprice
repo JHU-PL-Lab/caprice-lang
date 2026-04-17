@@ -2,6 +2,14 @@
   include refute;
 *)
 
+(*
+  This test is especially difficult to refute with lazy generation
+  of tables because we have to carefully extend the mappings without
+  disrupting previous approximations.
+
+  Currently, it fails! The implementation cannot handle this.
+*)
+
 (* four unique functions *)
 let f = fun x -> x
 let g = fun y -> not y

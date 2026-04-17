@@ -1,0 +1,33 @@
+(* TEST
+  include refute;
+*)
+
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f must make sum = 10: (f (λn.4)) + (f (λy.y*2)) = 10
+  - f must make (f (λn.4)) < (f (λy.y*2))
+  - f can distinguish callbacks by calling with 3:
+      (λn.4) returns 4
+      (λy.y*2) returns 6
+  - So f returns 4 for first, 6 for second: 4 + 6 = 10 ✓ and 4 < 6 ✓
+  - Then f is called with callback that errors if w=2
+  - f must call it with 2 → triggers BUG
+*)
+let derived_guarded_first_order_two_calls (f : (int -> int) -> int) : int =
+  let sum = f (fun n -> 4) + f (fun y -> y * 2) in
+  if sum == 10 then
+    if f (fun n -> 4) < f (fun y -> y * 2) then
+      f (fun w -> if w == 2 then error () (* BUG *) else 0)
+    else
+      0
+  else
+    0
+
+(* Counterexample to the above *)
+let derived_guarded_first_order_two_calls_ce g =
+  let n = g 3 in
+  if n == 4 then 4
+  else if n == 6 then 6
+  else g 2
