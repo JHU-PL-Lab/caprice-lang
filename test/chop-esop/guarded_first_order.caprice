@@ -1,22 +1,45 @@
 (* TEST
   include refute;
 *)
+(*
+  Original code:
+
+(define (guarded-first-order f)
+  (cond
+    [(= (+ (f (λ (n) 4))
+          (f (λ (y) ( * y 2))))
+        10)
+    (when (= (f (λ (m) 0)) -1)
+      (f (λ (w)
+            (when (= w 2) (error-bug "REAL"))
+            0)))]
+    [else 0]))
+
+(define guarded-first-order:ce
+  (list
+  (λ (g)
+    (if (= (g 2) 4)
+        5
+        -1))))
+
+(define-concolic-test prop-guarded-first-order
+  #:inputs
+  [F (->s (->s integer integer) integer)]
+  #:prop
+  (prop-not-error-bug
+   (λ () (guarded-first-order F))))
+*)
 
 let error _ = assert false
 
 (*
   The bug is reachable:
   - f must make sum = 10: (f (λn.4)) + (f (λy.y*2)) = 10
+    e.g. return 5 each time.
   - f must make (f (λm.0)) = -1
-  - f can distinguish callbacks by calling with 2:
-      (λn.4) returns 4
-      (λy.y*2) returns 4
-      (λm.0) returns 0
-  - Counterexample strategy:
-      if callback(2) = 4 → return 5 (covers first two, sum = 10)
-      else → return -1 (covers third callback)
-  - Then f is called with callback that errors if w=2
-  - f must call it with 2 → triggers BUG
+  - Then f must call its last argument with 2.
+    (note that the first two functions return the same thing
+    when called with 2)
 *)
 let guarded_first_order (f : (int -> int) -> int) : int =
   let sum = f (fun n -> 4) + f (fun y -> y * 2) in

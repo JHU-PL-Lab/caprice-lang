@@ -2,19 +2,56 @@
   include refute;
 *)
 
+(*
+  Original code:
+
+(define (Omega) (Omega))
+
+(define (reverse-args f)
+  (define n1 ((f (λ (n) (if (= n 0) 10 (Omega)))) 0))
+  (define n2 ((f (λ (n) (if (= n 0) 23 (Omega)))) 0))
+  (define n3 ((f (λ (m) (if (= m 1) 37 (Omega)))) 1))
+  (define n4 ((f (λ (m) (if (= m 1) 41 (Omega)))) 1))
+  (when (and (= n1 12)
+             (= n2 34)
+             (= n3 56)
+             (= n4 78))
+    (error-bug "REAL")))
+
+(define reverse-args:ce
+  (list
+   (λ (f)
+     (λ (x)
+       (define k (f x))
+       (cond
+         [(= k 10) 12]
+         [(= k 23) 34]
+         [(= k 37) 56]
+         [(= k 41) 78]
+         [else 0])))))
+
+(define-concolic-test prop-reverse-args
+  #:inputs
+  [F (->s (->s integer integer)
+          (->s integer integer))]
+  #:prop
+  (prop-not-error-bug
+   (λ () (reverse-args F))))
+*)
+
 let omega _ = assume false
 let error _ = assert false
 
 (*
   The bug is reachable:
-  - f takes a callback (int -> int) and returns a function (int -> int)
-  - f must "remember" what each callback returns and map:
-      10 -> 12
-      23 -> 34
-      37 -> 56
-      41 -> 78
-  - This requires f to call its callback, observe the result, and return
-    the corresponding mapped value
+  - f must call the first two functions with 0 to tell them apart
+  - Then f must _not_ call the next two functions with 0, or they
+    will vanish
+    (FIXME: this is the flaw in the implementation right now)
+  - By only calling the next two functions with 1, it can tell them
+    apart.
+
+  Then all those results must be different to hit the bug.
 *)
 let reverse_args (f : (int -> int) -> (int -> int)) : int =
   let n1 = f (fun n -> if n == 0 then 10 else omega ()) 0 in
