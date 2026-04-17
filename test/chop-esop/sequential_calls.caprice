@@ -1,0 +1,28 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  This test is found in the CHOP ESOP test suite.
+*)
+
+let omega _ = assume false
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f receives two callbacks
+  - First callback: returns 73 when n=7, loops otherwise
+  - Second callback: returns 64 when n=7, ERROR when n=31, else 73
+  - If f calls the second callback with 7 (gets 64), then calls it with 31 → BUG
+*)
+let sequential_calls (f : (int -> int) -> int) : int =
+  let _ = f (fun n -> if n == 7 then 73 else omega ()) in
+  f (fun n -> if n == 7 then 64
+              else if n == 31 then error ()  (* BUG *)
+              else 73)
+
+(* Counterexample for the above (unused) *)
+let sequential_calls_ce g =
+  if g 7 == 64 then g 31
+  else 0

@@ -1,0 +1,36 @@
+(* TEST
+  include refute;
+*)
+
+let omega _ = assume false
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f takes a callback (int -> int) and returns a function (int -> int)
+  - f must "remember" what each callback returns and map:
+      10 -> 12
+      23 -> 34
+      37 -> 56
+      41 -> 78
+  - This requires f to call its callback, observe the result, and return
+    the corresponding mapped value
+*)
+let reverse_args (f : (int -> int) -> (int -> int)) : int =
+  let n1 = f (fun n -> if n == 0 then 10 else omega ()) 0 in
+  let n2 = f (fun n -> if n == 0 then 23 else omega ()) 0 in
+  let n3 = f (fun m -> if m == 1 then 37 else omega ()) 1 in
+  let n4 = f (fun m -> if m == 1 then 41 else omega ()) 1 in
+  if n1 == 12 && n2 == 34 && n3 == 56 && n4 == 78 then
+    error ()  (* BUG *)
+  else
+    0
+
+(* Counterexample to the above (unused) *)
+let reverse_args_ce f x =
+  let k = f x in
+  if k == 10 then 12
+  else if k == 23 then 34
+  else if k == 37 then 56
+  else if k == 41 then 78
+  else 0

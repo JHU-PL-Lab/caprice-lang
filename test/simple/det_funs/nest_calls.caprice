@@ -1,0 +1,53 @@
+(* TEST
+  include refute;
+*)
+
+(* four unique functions *)
+let f = fun x -> x
+let g = fun y -> not y
+let h = fun _ -> true
+let k = fun _ -> false
+
+let rec all_unique ls =
+  match ls with
+  | [] -> true
+  | hd :: tl ->
+    let rec mem ls =
+      match ls with
+      | [] -> false
+      | a :: tl ->
+        a == hd || mem tl
+      end
+    in
+    not (mem tl) && all_unique tl
+  end
+
+(*
+  ERROR! These can all be unique. But when we only try one
+    mapping at each new entry, then they cannot all be unique.
+*)
+let main (p : (bool -> bool) -> int) : bool =
+  let a = p f in
+  let b = p g in
+  let c = p h in
+  let d = p k in
+  if all_unique [ a ; b ; c ; d ] then
+    0 (* this is reachable *)
+  else
+    true
+
+(* Counterexample to the above. *)
+let d = fun f ->
+  if f true then
+    if f false then
+      0
+    else
+      1
+  else
+    if f false then
+      2
+    else
+      3
+
+(* E.g. this exercises the difference and fails with a type mismatch: not 0 *)
+(* let _ = not (main d) *)
