@@ -325,7 +325,7 @@ and iequal_closure bindings closure1 closure2 =
     | ELet r1, ELet r2 ->
       let- () = iequal_statement bindings r1.stmt r2.stmt in
       iequal_expr (
-        (Ast.Tools.id_of_stmt r1.stmt, Ast.Tools.id_of_stmt r2.stmt) :: bindings
+        (Ast.id_of_stmt r1.stmt, Ast.id_of_stmt r2.stmt) :: bindings
       ) r1.body r2.body
     | EModule l1, EModule l2 ->
       begin match l1, l2 with
@@ -333,7 +333,7 @@ and iequal_closure bindings closure1 closure2 =
       | [], _ | _, [] -> make false
       | s1 :: tl1, s2 :: tl2 ->
         (* compare first statement and continue with remainder of modules *)
-        let id1, id2 = Ast.Tools.id_of_stmt s1, Ast.Tools.id_of_stmt s2 in
+        let id1, id2 = Ast.id_of_stmt s1, Ast.id_of_stmt s2 in
         let- () = make (Ident.equal id1 id2) in
         let- () = iequal_statement bindings s1 s2 in
         iequal_expr ((id1, id2) :: bindings) (Ast.EModule tl1) (Ast.EModule tl2)

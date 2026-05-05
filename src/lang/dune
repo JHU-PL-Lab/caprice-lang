@@ -1,20 +1,13 @@
 
-(ocamllex caprice_lexer)
-
-(menhir
- (modules caprice_parser))
-
 (library
  (name lang)
  (public_name caprice.lang)
  (synopsis "Caprice Language Definition")
- (modules (:standard))
  (libraries
   ; internal
   utils
   ; external
   baby
-  cmdliner
  )
  (instrumentation (backend landmarks --auto))
 )

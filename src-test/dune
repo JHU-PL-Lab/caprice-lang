@@ -12,6 +12,7 @@
  (libraries
   ; internal
   lang
+  parsing
   concolic
   lsp
   ; external

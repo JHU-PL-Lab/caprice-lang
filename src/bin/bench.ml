@@ -1,7 +1,7 @@
 
 let make_one ~options fname =
   try
-    let pgm = Lang.Parser.parse_file fname in
+    let pgm = Parsing.Parse.parse_file fname in
     let run pgm =
       match
         Concolic.Loop.begin_ceval pgm
@@ -13,7 +13,7 @@ let make_one ~options fname =
     in
     Some (Filename.basename fname, run, pgm)
   with
-  | Lang.Parser.Parse_error _ -> None
+  | Parsing.Parse.Parse_error _ -> None
 
 let bench_many ~trials tests =
   Benchmark.latencyN (Int64.of_int trials) tests

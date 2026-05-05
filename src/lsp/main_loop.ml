@@ -1,63 +1,60 @@
+module M = Concolic.Loop.Make (Scheduler.Pause_effect)
 
-type _ eff += Pause : unit eff
+let splay_check ~options pgm =
+  M.begin_ceval ~print_outcome:false ~options:{ options with splay = Splay_only } pgm
 
-module Pause_effect = struct
-  let yield () =
-    Effect.perform Pause
-end
+let normal_check ~options pgm =
+  M.begin_ceval ~print_outcome:false ~options:{ options with splay = Never_splay } pgm
 
-module M = Concolic.Loop.Make (Pause_effect)
-
-type r =
-  | Done of Grammar.Answer.t
-  | Cont of (unit, r) Effect.Deep.continuation
-
-type work_item = { span : Lang.Ast.pos_span ; task : unit -> r }
-
-let round_robin (fs : work_item list) : unit =
-  let run_q = Queue.of_seq (List.to_seq fs) in
-  let enqueue span k =
-    let task () = Effect.Deep.continue k () in
-    Queue.push { span ; task } run_q
+let handle_fallback ~options ~refinement_positions (span : Lang.Ast.pos_span)
+  pgm stripped_pgm : Scheduler.r =
+  let refinement_positions = List.filter
+    (fun (p : Lang.Ast.pos_span) -> p.begins.pos_cnum <= span.ends.pos_cnum)
+    refinement_positions
   in
-  let rec dequeue () =
-    match Queue.take_opt run_q with
-    | None -> ()
-    | Some { span ; task } ->
-      let r =
-        try task () with
-        | effect Pause, k ->
-          Cont k
-      in
-      match r with
-      | Done a ->
-        Print.print_answer span a;
-        dequeue ()
-      | Cont k -> enqueue span k; dequeue ()
-  in
-  dequeue ()
+  begin match splay_check ~options pgm with
+  | Grammar.Answer.Found_error msg ->
+    Print.print_splay_error span msg;
+    Scheduler.Spawn
+      [ { span
+        ; task = fun () ->
+            begin match splay_check ~options stripped_pgm with
+            | Grammar.Answer.Found_error _ -> ()
+            | _ -> List.iter Print.print_refinement_warning refinement_positions
+            end;
+            Scheduler.Done
+        }
+      ; { span
+        ; task = fun () ->
+            let a = normal_check ~options pgm in
+            Print.print_answer span a;
+            begin match a with
+            | Grammar.Answer.Found_error _ ->
+              List.iter Print.print_clear_refinement_warning refinement_positions;
+              Scheduler.Cancel_peers span
+            | _ -> Scheduler.Done
+            end
+        }
+      ]
+  | answer ->
+    Print.print_answer span answer;
+    Scheduler.Done
+  end
 
-let ceval_many ~(options : Concolic.Options.t) pgms =
-  round_robin (
-    List.map (fun (span, pgm) ->
-      { span ; task = fun () ->
+let ceval_many ~(options : Concolic.Options.t) ~refinement_positions pgms stripped_pgms =
+  Scheduler.round_robin (
+    List.map2 (fun (span, pgm) (_, stripped_pgm) ->
+      { Scheduler.span
+      ; task = fun () ->
           Print.print_pending span;
           match options.splay with
-          | Fallback ->
-            let splay_answer =
-              M.begin_ceval ~print_outcome:false
-                ~options:{ options with splay = Splay_only } pgm
-            in
-            begin match splay_answer with
-            | Grammar.Answer.Found_error msg ->
-              let () = Print.print_splay_error span msg in
-              Done (M.begin_ceval ~print_outcome:false
-                ~options:{ options with splay = Never_splay } pgm)
-            | answer -> Done answer
-            end
+          | Fallback -> handle_fallback ~options ~refinement_positions span pgm stripped_pgm
           | _ ->
-            Done (M.begin_ceval ~print_outcome:false ~options pgm) }
-    ) pgms
+            let a = M.begin_ceval ~print_outcome:false ~options pgm in
+            Print.print_answer span a;
+            Scheduler.Done
+      }
+    ) pgms stripped_pgms
   )
 
 let find_baseline_error ~options stmts_with_pos =
@@ -77,24 +74,27 @@ let find_baseline_error ~options stmts_with_pos =
 
 let run_typecheck ~(options : Concolic.Options.t) (packet : Protocol.checker_packet) =
   try
-    let stmts_with_pos = Lang.Parser.Positioned.parse_string packet.full_text in
-    let stmts_to_check =
+    let stmts_with_pos = Parsing.Parse.Positioned.parse_string packet.full_text in
+    let stripped_stmts, refinement_positions = Parsing.Parse.parse_stripped packet.full_text in
+    let stmts_to_check, stripped_to_check =
       match find_baseline_error ~options stmts_with_pos with
-      | None -> stmts_with_pos
+      | None -> stmts_with_pos, stripped_stmts
       | Some (error_span, a) ->
         (* TODO: extend error message to say statements after this are unreachable *)
         let () = Print.print_answer error_span a in
-        fst (Stmt_check.split_on_pos stmts_with_pos error_span)
+        fst (Stmt_check.split_on_pos stmts_with_pos error_span),
+        fst (Stmt_check.split_on_pos stripped_stmts error_span)
     in
     let check_index = Range_check.compute_check_pos stmts_to_check packet.changes in
-    match check_index with
+    begin match check_index with
     | None -> ()
     | Some start_pos ->
-      stmts_to_check
-      |> Stmt_check.mk_pgms ~start_pos
-      |> ceval_many ~options
+      let pgms = Stmt_check.mk_pgms stmts_to_check ~start_pos in
+      let stripped_pgms = Stmt_check.mk_pgms stripped_to_check ~start_pos in
+      ceval_many ~options ~refinement_positions pgms stripped_pgms
+    end
   with
-  | Lang.Parser.Parse_error (_exn, line, col, tok) ->
+  | Parsing.Parse.Parse_error (_exn, line, col, tok) ->
     Printf.printf "parse_error:%d:%d:%s\n%!" line col tok
   | exn ->
     Printf.printf "error:%s\n%!" (Printexc.to_string exn)

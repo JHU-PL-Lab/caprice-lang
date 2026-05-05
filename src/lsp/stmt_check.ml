@@ -15,7 +15,7 @@ let disable_all_checks (pgm : program_with_pos) : program_with_pos =
 
 let split_on_pos (pgm : program_with_pos) (pos : pos_span)
   : program_with_pos * program_with_pos =
-  let before (_, span) = Tools.compare_pos_span span pos < 0 in
+  let before (_, span) = compare_pos_span span pos < 0 in
   List.take_while before pgm, List.drop_while before pgm
 
 (* Produces programs with exactly one check each — the statement at

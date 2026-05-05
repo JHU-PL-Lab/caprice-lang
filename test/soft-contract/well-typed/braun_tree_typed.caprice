@@ -1,0 +1,33 @@
+(* TEST
+  include diverges;
+*)
+
+let t a = mu t.
+  | `Leaf of unit
+  | `Node of { v : a ; l : t ; r : t }
+
+let rec size (type a') (n : t a') : int =
+  match n with
+  | `Leaf () -> 0
+  | `Node node -> 1 + size a' node.l + size a' node.r
+  end
+
+let rec is_braun_tree (type a') (x : t a') : bool =
+  match x with
+  | `Leaf () -> true
+  | `Node node ->
+    is_braun_tree a' node.l
+    && is_braun_tree a' node.r
+    && (size a' node.l == size a' node.r || size a' node.l == size a' node.r + 1)
+  end
+
+let bt a = { tree : t a | is_braun_tree a tree }
+
+let rec insert (type a') (tree : bt a') (x : a') : bt a' =
+  match tree with
+  | `Leaf () -> `Node { v = x ; l = `Leaf () ; r = `Leaf () }
+  | `Node node ->
+    if size a' node.l > size a' node.r
+    then `Node { l = node.l ; r = insert a' node.r x ; v = node.v }
+    else `Node { l = insert a' node.l x ; r = node.r ; v = node.v }
+  end

@@ -2,9 +2,11 @@ open Lexing
 
 exception Parse_error of exn * int * int * string
 
+module Default = Parser.Make (Param.Standard)
+
 module type PARSER_ENTRY = sig
   type result
-  val entry_point : (Lexing.lexbuf -> Caprice_parser.token) -> Lexing.lexbuf -> result
+  val entry_point : (Lexing.lexbuf -> Tokens.token) -> Lexing.lexbuf -> result
 end
 
 let handle_parse_error buf f =
@@ -19,7 +21,7 @@ let handle_parse_error buf f =
 module Make(Parser_entry: PARSER_ENTRY) = struct
   let parse_lexbuf (buf : Lexing.lexbuf) : Parser_entry.result =
     handle_parse_error buf @@ fun () ->
-    Parser_entry.entry_point Caprice_lexer.token buf
+    Parser_entry.entry_point Lexer.token buf
 
   let parse_string (input : string) : Parser_entry.result =
     parse_lexbuf (Lexing.from_string input)
@@ -40,11 +42,22 @@ module Make(Parser_entry: PARSER_ENTRY) = struct
 end
 
 include Make (struct
-  type result = Ast.statement list
-  let entry_point = Caprice_parser.prog
+  type result = Lang.Ast.statement list
+  let entry_point = Default.prog
 end)
 
 module Positioned = Make (struct
-  type result = Ast.statement_with_pos list
-  let entry_point = Caprice_parser.prog_with_pos
+  type result = Lang.Ast.statement_with_pos list
+  let entry_point = Default.prog_with_pos
 end)
+
+let parse_stripped (input : string) : Lang.Ast.statement_with_pos list * Lang.Ast.pos_span list =
+  let module Ignore = Param.Make_ignore_refine () in
+  let module Stripped_parser = Parser.Make (Ignore) in
+  let module Stripped_parse = Make (struct
+      type result = Lang.Ast.program_with_pos
+      let entry_point = Stripped_parser.prog_with_pos
+    end)
+  in
+  let stmts = Stripped_parse.parse_string input in
+  stmts, Ignore.positions ()

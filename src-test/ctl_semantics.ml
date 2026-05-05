@@ -54,7 +54,7 @@ let options_of_env (env : Environment.t) : Concolic.Options.t =
 let compute_typecheck_test filename env =
   let expect = parse_expect (get_var env typing exhausted_s) in
   let options = options_of_env env in
-  let pgm = Lang.Parser.parse_file filename in
+  let pgm = Parsing.Parse.parse_file filename in
   let answer = Concolic.Loop.begin_ceval pgm ~options in
   match expect, answer with
   | Ill_typed, Grammar.Answer.Found_error _
@@ -66,7 +66,7 @@ let positions_test filename env =
   let expected = Position_checks.parse_positions (get_var env positions "") in
   let actual =
     filename
-    |> Lang.Parser.Positioned.parse_file
+    |> Parsing.Parse.Positioned.parse_file
     |> List.map (fun (_statement, { Lang.Ast.begins ; ends }) ->
         (Lsp.Positions.of_lexing begins, Lsp.Positions.of_lexing ends))
   in
@@ -74,11 +74,11 @@ let positions_test filename env =
 
 let statement_index_test filename env =
   let open Position_checks in
-  let stmts_with_pos = Lang.Parser.Positioned.parse_file filename in
+  let stmts_with_pos = Parsing.Parse.Positioned.parse_file filename in
   let span_to_idx span =
     stmts_with_pos
     |> List.find_mapi (fun i (_, s) ->
-      if Lang.Ast.Tools.equal_pos_span s span then Some i else None)
+      if Lang.Ast.equal_pos_span s span then Some i else None)
     |> Option.value ~default:(-1)
   in
   let expected = parse_int_list (get_var env statement_indexes "") in
