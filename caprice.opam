@@ -10,7 +10,7 @@ depends: [
   "baby"
   "benchmark"
   "cmdliner"
-  "menhir"
+  "menhir" {>= "20180523"}
   "mtime"
   "ocaml" {>= "5.5.0"}
   "psq"
