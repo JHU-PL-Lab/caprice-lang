@@ -1,10 +1,9 @@
 (library
- (name smt)
- (public_name caprice.smt)
+ (name sat)
+ (public_name caprice.sat)
  (libraries
   ; internal
   utils
-  sat
   ; external
   baby)
  (synopsis "SMT module for Caprice")

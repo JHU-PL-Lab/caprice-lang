@@ -44,3 +44,9 @@ _opam/
 
 # Executables
 *.exe
+
+# local config
+.editorconfig
+
+# python virtual environment
+venv

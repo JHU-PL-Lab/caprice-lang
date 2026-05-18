@@ -1,0 +1,4 @@
+### What were the average runtimes from both solvers?
+| avg_blue3 | avg_z3  |
+|-----------|---------|
+| 220.0μs   | 326.0μs |

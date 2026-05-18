@@ -1,4 +1,3 @@
-
 module type S = sig
   type ('a, 'k) t
 
@@ -16,6 +15,8 @@ module type S = sig
   val is_const : ('a, 'k) t -> bool
 
   val and_ : (bool, 'k) t list -> (bool, 'k) t
+
+  val or_ : (bool, 'k) t list -> (bool, 'k) t
 end
 
 module T : sig
@@ -66,6 +67,17 @@ end = struct
     | Const_int _ | Const_bool _ -> true
     | Key _ | Not _ | And _ | Binop _ -> false
 
+  let bool_opt : type a k. (a,k) t -> (bool, k) t option =
+    function
+    | Const_bool _ as f -> Some f
+    | Key (B _) as f -> Some f
+    | Not _ as f -> Some f
+    | And _ as f -> Some f
+    | Binop (Less_than, _, _) as f -> Some f
+    | Binop (Less_than_eq, _, _) as f -> Some f
+    | Binop (Equal, _, _) as f -> Some f
+    | _ -> None
+
   let rec binop
     : type a b c. (a * a * b, c) Binop.c -> (a, 'k) t -> (a, 'k) t -> (b, 'k) t
     = fun op x y ->
@@ -74,18 +86,22 @@ end = struct
       begin match x, y with
       | Const_bool true, _ | _, Const_bool true -> Const_bool true
       | Const_bool false, e | e, Const_bool false -> e
+      | And clauses, e ->
+        and_ (List.map (fun c -> binop Or c e) clauses)
+      | e, And clauses ->
+        and_ (List.map (fun c -> binop Or e c) clauses)
       | e1, e2 -> Binop (Or, e1, e2)
       end
     | Equal ->
-      begin match x, y with
-      | Const_bool true, e -> e
-      | e, Const_bool true -> e
-      | Const_bool false, e -> not_ e
-      | e, Const_bool false -> not_ e
-      | Const_int _, Key _ -> Binop (Equal, y, x)
-      | Const_int i1, Const_int i2 -> Const_bool (i1 = i2)
-      | e1, e2 when equal e1 e2 -> true_
-      | e1, e2 -> Binop (Equal, e1, e2)
+      begin match bool_opt x, bool_opt y with
+      | Some bx, Some by -> iff bx by
+      | _ ->
+        begin match x, y with
+        | Const_int _, Key _ -> Binop (Equal, y, x)
+        | Const_int i1, Const_int i2 -> Const_bool (i1 = i2)
+        | e1, e2 when equal e1 e2 -> true_
+        | e1, e2 -> Binop (Equal, e1, e2)
+        end
       end
     | Not_equal -> not_ (binop Equal x y)
     | Plus ->
@@ -141,6 +157,24 @@ end = struct
       (* Note that we will change greater-than-eq to less-than-eq *)
       | e1, e2 -> if equal e1 e2 then true_ else Binop (Less_than_eq, e2, e1)
       end
+    | Iff -> iff x y
+
+  and iff (x : (bool, 'k) t) (y : (bool, 'k) t) : (bool, 'k) t =
+    match x, y with
+    | Const_bool true, e | e, Const_bool true -> e
+    | Const_bool false, e | e, Const_bool false -> not_ e
+    | e1, e2 when equal e1 e2 -> true_
+    | e1, e2 -> and_ [ or_ [not_ e1; e2] ; or_ [e1; not_ e2] ]
+
+  and or_ (ls : (bool, 'k) t list) : (bool, 'k) t =
+    match ls with
+    | [] -> const_bool false
+    | [x] -> x
+    | x :: xs ->
+      List.fold_left
+        (fun acc f -> binop Or acc f)
+        x
+        xs
 
   and not_ (e : (bool, 'k) t) : (bool, 'k) t =
     match e with
@@ -153,6 +187,7 @@ end = struct
       (* not (e1 <= e2) = (e2 < e1) *)
       Binop (Less_than, e2, e1)
     | Binop (Or, e1, e2) -> and_ [ not_ e1 ; not_ e2 ] (* it's easier in general to work with "and" *)
+    | And es -> or_ (List.map not_ es)
     | _ -> Not e
 
   and and_ (e_ls : (bool, 'k) t list) : (bool, 'k) t =
@@ -174,9 +209,14 @@ end = struct
         | other when equal other (not_ e) -> false_
         | other when equal other e -> e
         | other -> And [ e ; other ]
+
 end
 
 include T
+
+let plus (x : (int, 'k) t) (y : (int, 'k) t) : (int, 'k) t = binop Plus x y
+
+let minus (x : (int , 'k) t) (y : (int, 'k) t) : (int, 'k) t = binop Minus x y
 
 let transform (type a) (module X : S) (e : (a, 'k) t) : (a, 'k) X.t =
   let rec transform : type a. (a, 'k) t -> (a, 'k) X.t = fun e ->
@@ -189,6 +229,36 @@ let transform (type a) (module X : S) (e : (a, 'k) t) : (a, 'k) X.t =
     | Binop (op, e1, e2) -> X.binop op (transform e1) (transform e2)
   in
   transform e
+
+let rec eval_opt : type a. 'k Model.t -> (a, 'k) t -> a option =
+  fun model formula ->
+  match formula with
+  | Key s ->
+    model.value s
+  | Const_int i -> Some i
+  | Const_bool b -> Some b
+  | Not e ->
+    begin match eval_opt model e with
+    | Some b -> Some (not b)
+    | None -> None
+    end
+  | And e_ls ->
+    let rec loop = function
+      | [] -> Some true
+      | e :: rest ->
+        begin match eval_opt model e with
+        | Some true -> loop rest
+        | Some false -> Some false
+        | None -> None
+        end
+    in
+    loop e_ls
+  | Binop (type b) (op, e1, e2 : (b * b * a) Binop.t * (b, 'k) t * (b, 'k) t) ->
+    begin match eval_opt model e1, eval_opt model e2 with
+    | Some v1, Some v2 ->
+      Some (Binop.to_arithmetic op v1 v2)
+    | _ -> None (* then some key couldn't be resolved *)
+    end
 
 let rec eval
   : type a. default:('c. ('c, 'k) Symbol.t -> 'c) -> 'k Model.t -> (a, 'k) t -> a
@@ -301,3 +371,53 @@ module Set = struct
       and_ @@ collect formula_symbols [ formula ] all_with_symbols
   end
 end
+
+(** [clauses_from f] unwraps the [And] list from F if F is a conjunction or
+    [[F]] if F is anything else *)
+let clauses_from (f : (bool, 'k) t) =
+  match f with
+  | And ls -> ls
+  | f -> [ f ]
+
+let rec disjuncts_from_clause
+    (clause : (bool, 'k) t)
+  : (bool, 'k) t list =
+  match clause with
+  | And _ -> failwith "\n[disjuncts_from_clause]: CNF can't have an And inside a clause!"
+  | Binop (Or, left, right) ->
+      disjuncts_from_clause left @ disjuncts_from_clause right
+  | lit ->
+      [ lit ]
+
+let rec contains_binops : type a k. _ Binop.t list -> (a, k) t -> bool =
+ fun targets -> function
+  | Not formula -> contains_binops targets formula
+  | Binop (op, l, r) ->
+      List.exists (fun target -> Binop.poly_equal op target) targets
+      || contains_binops targets l
+      || contains_binops targets r
+  | And ls -> List.exists (contains_binops targets) ls
+  | _ -> false
+
+let contains_binop : type a k. _ Binop.t -> (a, k) t -> bool =
+  fun target -> contains_binops [target]
+
+let to_string : type a. key:(Model.key -> string) -> (a, 'k) t -> string =
+ fun ~key formula ->
+  let rec to_string : type a. (a, 'k) t -> string = function
+    | Const_int i -> string_of_int i
+    | Const_bool b -> string_of_bool b
+    | Key (I k) -> key (Model.Int_key k)
+    | Key (B k) -> key (Model.Bool_key k)
+    | Not e -> Format.sprintf "(not %s)" (to_string e)
+    | And [] -> "true"
+    | And (hd :: tl) ->
+        List.fold_left
+          (fun acc e -> acc ^ " ^ " ^ to_string e)
+          (to_string hd) tl
+    | Binop (bop, e1, e2) ->
+        Format.sprintf "(%s %s %s)" (to_string e1) (Binop.to_string bop)
+          (to_string e2)
+  in
+  to_string formula
+

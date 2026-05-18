@@ -1,3 +1,4 @@
+module Benchmarker = Utils.Benchmarker
 
 let make_one ~options fname =
   try
@@ -14,9 +15,6 @@ let make_one ~options fname =
     Some (Filename.basename fname, run, pgm)
   with
   | Parsing.Parse.Parse_error _ -> None
-
-let bench_many ~trials tests =
-  Benchmark.latencyN (Int64.of_int trials) tests
 
 let ls_dir dir =
   Sys.readdir dir
@@ -66,7 +64,7 @@ let bench_main =
     )
   in
   let tests = find_caprice_files ~recpaths paths |> List.filter_map (make_one ~options) in
-  let _res = bench_many ~trials tests in
+  let _res = Benchmarker.bench_many ~trials tests in
   ()
 
 let () =

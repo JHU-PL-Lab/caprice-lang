@@ -1,3 +1,16 @@
+module type SET = sig
+  include Baby.W.Set.S
+
+  val random_elt_opt : t -> elt option
+  val list_map : (elt -> 'b) -> t -> 'b list
+end
+
+module type MAP = sig
+  include Baby.W.Map.S
+
+  val random_binding_opt : 'a t -> (key * 'a) option
+  val extend : 'a t -> with_:'a t -> 'a t
+end
 
 (* Make weight-balanced set and map modules. *)
 module Make_W (K : Baby.OrderedType) = struct
@@ -33,6 +46,11 @@ module Make_W (K : Baby.OrderedType) = struct
     let mapM (module M : Types.INDEXED_MONAD) (f : 'a -> ('b, 'i) M.m)
         (x : 'a t) : ('b t, 'i) M.m =
       mapiM (module M) (fun _ a -> f a) x
+
+    (** [extend t ~with_] is the union of T and WITH_, where
+        shared keys their values replaced with the value from WITH_ *)
+    let extend (t : 'a t) ~(with_ : 'a t) : 'a t =
+      union (fun _ _ new_v -> Some new_v) t with_
   end
 
   module Set = struct
@@ -50,3 +68,4 @@ module Make_W (K : Baby.OrderedType) = struct
       aux (Enum.enum t)
   end
 end
+

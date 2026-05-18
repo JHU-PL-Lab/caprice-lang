@@ -30,13 +30,22 @@ module Make (K : Smt.Symbol.KEY) = struct
     ^ "}"
 
   let of_model (model : K.t Smt.Model.t) : t =
-    List.fold_left (fun acc uid ->
-      let v =
-        match model.value (I uid) with
-        | Some i -> Input.IInt i
-        | None -> IBool (Option.get (model.value (B uid)))
-      in
-      Utils.Uid.Map.add uid v acc
+    List.fold_left (fun acc key ->
+      match key with
+      | Smt.Model.Bool_key sym -> (
+        match model.value (B sym) with
+        | Some b ->
+            let uid = Smt.Symbol.to_uid (B sym) in
+            Utils.Uid.Map.add uid (Input.IBool b) acc
+        | None -> acc
+      )
+      | Smt.Model.Int_key sym -> (
+        match model.value (I sym) with
+        | Some i ->
+          let uid = Smt.Symbol.to_uid (I sym) in
+          Utils.Uid.Map.add uid (Input.IInt i) acc
+        | None -> acc
+      )
     ) empty model.domain
 end
 

@@ -53,7 +53,8 @@ let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) :
   collect [] Exhausted runs
 
 module Default_Z3 = Overlays.Typed_z3.Default
-let solve = Smt.Solve.simplify (Smt.Solve.direct_solve (module Default_Z3))
+
+let solve = Smt.Solve.main_solve (module Default_Z3)
 
 module Make (Y : sig val yield : unit -> unit end) = struct
   let begin_loop ~(options : Options.t) (pgm : Lang.Ast.program) : Answer.t * run_count:int =

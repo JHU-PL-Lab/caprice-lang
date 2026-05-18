@@ -1,0 +1,14 @@
+(executable
+ (name benchmarks)
+ (modules benchmarks boolean)
+ (libraries smt overlays utils))
+
+(executable
+ (name sanity_check)
+ (modules sanity_check boolean)
+ (libraries smt overlays utils))
+
+(executable
+ (name difference_logic)
+ (modules difference_logic boolean)
+ (libraries smt overlays utils))

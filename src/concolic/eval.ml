@@ -580,7 +580,7 @@ let eval
           let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
           let new_env, tau =
             (* think about sharing this computation because rn it is redone on every fork *)
-            Utils.List_utils.fold_left_until (fun env (label', tau) ->
+            Utils.List_utils.fold_until (fun env (label', tau) ->
               if Record.Label.equal label' label
               then `Stop (env, tau)
               else `Continue (
