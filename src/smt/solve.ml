@@ -73,3 +73,23 @@ let rec simplify : 'k simplifier = fun solve expr ->
     end
   | _ ->
     solve expr
+
+(*
+  Simplifies and solves. Asserts correctness of the solution by evaluating
+  the expression in the model, or by checking unsatisfiability against the
+  oracle, which means the oracle may be used twice for unsat expressions.
+
+  Since assertions are disabled in release mode, this adds no cost to
+  benchmarks; it only slows down the test suite.
+*)
+let main_solve (module Oracle : SOLVABLE) : 'k solver = fun e ->
+  let solution = simplify (direct_solve (module Oracle)) e in
+  let () =
+    assert (
+      match solution with
+      | Solution.Unknown -> true
+      | Sat model -> Formula.eval ~default:(fun _ -> assert false) model e
+      | Unsat -> Solution.Unsat = direct_solve (module Oracle) e
+    )
+  in
+  solution
