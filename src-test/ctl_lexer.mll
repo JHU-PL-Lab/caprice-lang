@@ -38,7 +38,8 @@ and token = parse
   | identchar* as s    { IDENTIFIER s }
   | ";"                { SEMI }
   | '"'                { STRING (string "" lexbuf )}
-  | eof                { failwith "unexpected eof" }
+  | eof                { failwith "CTL Lexer - unexpected eof" }
+  | ""                 { failwith "CTL Lexer - unexpected empty buffer" }
 
 and string acc = parse
   | [^ '\\' '"' ]+
@@ -53,3 +54,5 @@ and string acc = parse
     {string (acc ^ "\\") lexbuf}
   | '"'
     {acc}
+  | ""
+    { failwith "CTL Lexer - unexpected empty buffer in string" }

@@ -89,6 +89,7 @@ rule token = parse
 | "as"                 { AS }
 | digit+ as n          { INT (int_of_string n) }
 | ident_start ident_cont* as s     { IDENTIFIER s }
+| ""                   { failwith "Lexer - unexpected empty buffer" }
 
 and multi_line_comment depth = parse
 | "(*" { multi_line_comment (depth + 1) lexbuf }
