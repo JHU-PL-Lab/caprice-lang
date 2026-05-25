@@ -34,8 +34,11 @@ function toSeverity(tag: OcamlMessage['tag']): DiagnosticSeverity | null {
   }
 }
 
+type SplayMarker = { range: Range; message: string };
+
 export class DiagnosticsManager {
   private byStmt = new Map<string, Diagnostic>();
+  private splayMarkers = new Map<string, SplayMarker>();
   private pendingParseError: { diagnostic: Diagnostic; timer: NodeJS.Timeout } | null = null;
   private inFlight = new Map<string, { range: Range; timer: NodeJS.Timeout }>();
   private editLine = 0;
@@ -46,6 +49,13 @@ export class DiagnosticsManager {
     this.connection.sendDiagnostics({
       uri,
       diagnostics: Array.from(this.byStmt.values()),
+    });
+  }
+
+  private flushSplay(uri: string): void {
+    this.connection.sendNotification('caprice/splayMarkers', {
+      uri,
+      markers: Array.from(this.splayMarkers.values()),
     });
   }
 
@@ -109,7 +119,10 @@ export class DiagnosticsManager {
       case 'exhausted_pruned': {
         const key = rangeKey(msg.range);
         this.invalidate(key, msg.range);
-        if (msg.tag === 'error') this.byStmt.delete(key + ':splay');
+        if (msg.tag === 'error') {
+          this.splayMarkers.delete(key + ':splay');
+          this.flushSplay(uri);
+        }
         const severity = toSeverity(msg.tag)!;
         const diagnostic: Diagnostic = {
           range: msg.range,
@@ -128,23 +141,30 @@ export class DiagnosticsManager {
       }
 
       case 'splay_error': {
-        const key = rangeKey(msg.range);
-        this.byStmt.set(key + ':splay', {
+        this.splayMarkers.set(rangeKey(msg.range) + ':splay', {
           range: msg.range,
           message: `Splay-checking failed: ${msg.msg}`,
-          severity: DiagnosticSeverity.Warning,
+        });
+        this.flushSplay(uri);
+        break;
+      }
+
+      case 'refinement_warning': {
+        this.byStmt.set(rangeKey(msg.range) + ':refinement', {
+          range: {
+            start: msg.range.start,
+            end: { line: msg.range.start.line, character: msg.range.start.character + 1 },
+          },
+          message: 'Splay-checking failed because of refinement types',
+          severity: DiagnosticSeverity.Hint,
+          code: 'caprice.refinement',
         });
         this.flush(uri);
         break;
       }
 
-      case 'refinement_warning': {
-        const key = rangeKey(msg.range);
-        this.byStmt.set(key + ':refinement', {
-          range: msg.range,
-          message: 'Splay-checking failed because of refinement types',
-          severity: DiagnosticSeverity.Warning,
-        });
+      case 'clear_refinement_warning': {
+        this.byStmt.delete(rangeKey(msg.range) + ':refinement');
         this.flush(uri);
         break;
       }
@@ -152,9 +172,16 @@ export class DiagnosticsManager {
       case 'ok': {
         const key = rangeKey(msg.range);
         this.invalidate(key, msg.range);
-        this.byStmt.delete(key + ':splay');
-        this.byStmt.delete(key + ':refinement');
+        this.splayMarkers.delete(key + ':splay');
+        for (const [k, diag] of this.byStmt) {
+          if (k.endsWith(':refinement') &&
+              diag.range.start.line >= msg.range.start.line &&
+              diag.range.end.line <= msg.range.end.line) {
+            this.byStmt.delete(k);
+          }
+        }
         this.flush(uri);
+        this.flushSplay(uri);
         break;
       }
     }
@@ -167,13 +194,19 @@ export class DiagnosticsManager {
     }
     if (isNewDoc) {
       this.byStmt.clear();
+      this.splayMarkers.clear();
       this.editLine = 0;
+      this.flushSplay(uri);
     } else {
       this.editLine = Math.min(...changes.map(c => c.start.line));
       for (const [key, diag] of this.byStmt) {
         if (diag.range.end.line >= this.editLine) this.byStmt.delete(key);
       }
+      for (const [key, m] of this.splayMarkers) {
+        if (m.range.end.line >= this.editLine) this.splayMarkers.delete(key);
+      }
       this.flush(uri);
+      this.flushSplay(uri);
     }
   }
 
