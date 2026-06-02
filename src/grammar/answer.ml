@@ -2,18 +2,18 @@
 type t =
   | Found_error of string   (* found an error *)
   | Timeout of Mtime.Span.t (* global timeout *)
-  | Unknown                 (* solver timeout lead to unknown path *)
-  | Exhausted_pruned        (* no more targets up to some depth *)
+  | Unknown                 (* solver timeout leads to unknown path *)
+  | Exhausted_pruned        (* ran all paths up to some depth *)
   | Exhausted               (* completely ran all possible paths *)
 
 let min a b =
   match a, b with
-  (* First quickly enumerate the cases where a is smaller *)
+  (* First quickly enumerate the cases where a is strictly smaller *)
   | Exhausted_pruned, Exhausted
   | Unknown, (Exhausted | Exhausted_pruned)
   | Timeout _, (Exhausted | Exhausted_pruned | Unknown)
   | Found_error _, _ -> a
-  (* Otherwise b is smaller *)
+  (* Otherwise b is minimum *)
   | _ -> b
 
 let prune a =
