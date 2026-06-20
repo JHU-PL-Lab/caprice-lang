@@ -4,5 +4,5 @@
   (flags
    (:standard -w +a-4-40-41-42-44-45-50-70)))
  (release
-  (flags (:standard -noassert))
-  (ocamlopt_flags (:standard -O3))))
+  (flags (:standard -noassert \ -g))
+  (ocamlopt_flags (:standard -O3 \ -g))))
