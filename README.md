@@ -39,13 +39,13 @@ let factors (dep n : pos_int) (* hence n is marked dep for "dependent" *)
 
 ## Installation
 
-Caprice is built with OCaml 5.5.0~beta1.
+Caprice is built with OCaml 5.5.0.
 
-Via opam, install OCaml 5.5.0~beta1 and then install the dependencies. Answer y/yes to all questions:
+Via opam, install OCaml 5.5.0 and then install the dependencies. Answer y/yes to all questions:
 
 ```cmd
 opam update
-opam switch create 5.5.0~beta1
+opam switch create 5.5.0
 opam install . --deps-only
 ```
 
@@ -63,14 +63,14 @@ The installation is tested on WSL2 for Windows 11.
 Develop in the caprice-lang repository with the following developer tools:
 
 ```cmd
-opam install ocaml-lsp-server
+opam install ocaml-lsp-server ocamlformat
 ```
 
 If you are using VS Code, use the OCaml Platform extension.
 
 To write programs in the Caprice language, it's suggested to install the VS Code language extension. Navigate to the `caprice-language-extension` directory and follow the instructions in `README.md` there.
 
-To use the landmarks profiling tool, see the recent [pull request](https://github.com/LexiFi/landmarks/pull/47) for compatibility with ppxlib >= 0.36.0 and OCaml 5.5 features. It will require a local opam pin to use landmarks in caprice-lang until that PR is merged and released. Profiling is not required to run Caprice.
+<!-- To use the landmarks profiling tool, see the recent [pull request](https://github.com/LexiFi/landmarks/pull/47) for compatibility with ppxlib >= 0.36.0 and OCaml 5.5 features. It will require a local opam pin to use landmarks in caprice-lang until that PR is merged and released. Profiling is not required to run Caprice. -->
 
 ## Programming with Caprice
 
