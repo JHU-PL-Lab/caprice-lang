@@ -70,6 +70,7 @@ let bench_main =
   ()
 
 let () =
+  Utils.Etc.set_1M_minor_heap ();
   match Cmdliner.Cmd.eval_value' bench_main with
   | `Ok _ -> ()
   | `Exit i -> exit i

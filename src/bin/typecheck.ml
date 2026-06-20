@@ -7,6 +7,7 @@ let typecheck_main =
   Concolic.Loop.begin_ceval ~options caprice_pgm
 
 let () =
+  Utils.Etc.set_1M_minor_heap ();
   match Cmdliner.Cmd.eval_value' typecheck_main with
   | `Ok _ -> ()
   | `Exit i -> exit i
