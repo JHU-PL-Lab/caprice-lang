@@ -5,7 +5,7 @@ maintainer: ["Brandon Stride <bstride1@jhu.edu"]
 authors: ["Brandon Stride <bstride1@jhu.edu"]
 license: "MIT"
 depends: [
-  "dune" {>= "3.21"}
+  "dune" {>= "3.23"}
   "alcotest"
   "baby"
   "benchmark"
