@@ -1,6 +1,6 @@
 open Lexing
 
-exception Parse_error of exn * int * int * string
+exception Parse_error of string * int * int * string
 
 module Default = Parser.Make (Param.Standard)
 
@@ -16,7 +16,7 @@ let handle_parse_error buf f =
     let line = curr.pos_lnum in
     let column = curr.pos_cnum - curr.pos_bol in
     let tok = lexeme buf in
-    raise @@ Parse_error (exn, line, column, tok)
+    raise @@ Parse_error (Printexc.to_string exn, line, column, tok)
 
 module Make(Parser_entry: PARSER_ENTRY) = struct
   let parse_lexbuf (buf : Lexing.lexbuf) : Parser_entry.result =

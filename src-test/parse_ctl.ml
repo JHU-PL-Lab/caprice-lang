@@ -1,7 +1,7 @@
 
 open Lexing
 
-exception Parse_error of exn * int * int * string * string
+exception Parse_error of string * int * int * string * string
 
 let propagate_parse_error buf filename f =
   try f ()
@@ -10,7 +10,7 @@ let propagate_parse_error buf filename f =
     let line = curr.pos_lnum in
     let column = curr.pos_cnum - curr.pos_bol in
     let tok = lexeme buf in
-    raise @@ Parse_error (exn, line, column, tok, filename)
+    raise @@ Parse_error (Printexc.to_string exn, line, column, tok, filename)
 
 let has_test filename =
   In_channel.with_open_bin filename @@ fun ic ->
