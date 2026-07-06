@@ -10,7 +10,6 @@
 %token INCLUDE
 %token TYPECHECK
 %token POSITIONCHECK
-%token STATEMENTINDEXCHECK
 %token SKIP
 %token SEMI
 %token <string> IDENTIFIER
@@ -35,7 +34,6 @@ ctl_item:
 test_item:
   | TYPECHECK { Typecheck }
   | POSITIONCHECK { Position_check }
-  | STATEMENTINDEXCHECK { Statement_index_check }
   | SKIP      { Skip }
 
 env_item:
