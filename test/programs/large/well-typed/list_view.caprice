@@ -1,0 +1,71 @@
+(* TEST
+  include exhaust;
+*)
+
+(* Encoding backwards list view from
+    Philip Wadler. Views: A way for pattern matching to cohabit with data abstraction
+*)
+
+let t a = mu t.
+  | `Nil of unit
+  | `Cons of a * t
+  | `Snoc of t * a
+
+let view a = { v : t a |
+  match v with
+  | `Nil ()
+  | `Snoc _ -> true
+  | `Cons _ -> false
+  end
+}
+
+let lst a = { l : t a |
+  match l with
+  | `Nil ()
+  | `Cons _ -> true
+  | `Snoc _ -> false
+  end
+}
+
+(* Error idea: accept only `lst a` so that the recursive call fails the wrap check *)
+let rec see (type a) (ls : t a) : view a =
+  match ls with
+  | `Nil () | `Snoc _ -> ls
+  | `Cons (x, ls) ->
+    match see a ls with
+    | `Nil () -> `Snoc (`Nil (), x)
+    | `Snoc (xs, x') -> `Snoc (`Cons (x, xs), x')
+    end
+  end
+
+let rec hide (type a) (ls : t a) : lst a =
+  match ls with
+  | `Nil () | `Cons _ -> ls
+  | `Snoc (ls, x') ->
+    match hide a ls with
+    | `Nil () -> `Cons (x', `Nil ())
+    | `Cons (x, xs) -> `Cons (x, `Snoc (xs, x'))
+    end
+  end
+
+let ne a = { l : t a |
+  match l with
+  | `Nil () -> false
+  | _ -> true
+  end
+}
+
+let last (type a) (l : ne a) : a =
+  match see a l with
+  | `Snoc (_, x) -> x
+  end
+
+let rotleft (type a) (l : ne a) : ne a =
+  match hide a l with
+  | `Cons (x, xs) -> `Snoc (xs, x) (* Error idea: `Snoc (x, xs) (swap the components) *)
+  end
+
+let rotright (type a) (l : ne a) : ne a =
+  match see a l with
+  | `Snoc (xs, x) -> `Cons (x, xs)
+  end
