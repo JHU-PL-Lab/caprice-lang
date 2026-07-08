@@ -1,9 +1,7 @@
 
 type reason =
-  (* Concolic evaluator must NOT fork on these *)
   | GenList             (* generate empty or cons *)
   | ChooseEmptyFun      (* choose to compare to empty or real function *)
-  (* Concolic evaluation MUST for on these *)
   | CheckList           (* check hd or tl *)
   | CheckTuple          (* check left or right side of tuple *)
   | CheckSingleton      (* check subset or superset or intensional equality *)
@@ -39,17 +37,21 @@ type t =
 let of_variant_label dir vlabel =
   Label (Lang.Variant.Label.to_ident vlabel, dir)
 
-let of_record_label dir rlabel =
-  Label (Lang.Record.Label.to_ident rlabel, dir)
+(* Record labels are generated in product, so there is no branching on them,
+  and thus record label tags are always checks. *)
+let of_record_label rlabel =
+  Label (Lang.Record.Label.to_ident rlabel, Check)
 
 let priority = function
   | Label (_, Gen) -> Path_priority.one
   | Label (_, Check) -> Path_priority.zero
   | (Left reason | Right reason) ->
     match reason with
-    (* Give priority because did not fork, and needs to make a longer path *)
-    | GenList | ChooseEmptyFun -> Path_priority.one
-    (* No priority for tags on which we fork *)
+    (* Give priority because we need to stop trying longer lists at some point. *)
+    | GenList -> Path_priority.one
+    (* No priority for tags that just check without generating more paths.
+      If we give priority to these, then we run out of budget very quickly
+      because there may be many of these along a single path. *)
     | _ -> Path_priority.zero
 
 let to_string = function

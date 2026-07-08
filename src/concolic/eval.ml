@@ -709,7 +709,7 @@ let eval
         let* () = incr_step ~max_step in
         let* l_opt = read_input KTag input_env in
         let push_and_check label =
-          let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
+          let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
           check_label label
         in
         match l_opt with

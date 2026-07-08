@@ -12,7 +12,7 @@ let empty : t =
   ; all_formulas = Formula.BSet.empty
   ; i_env = Input_env.empty
   ; id = Utils.Uid.make_new ()
-  ; when_ = Step.zero
+  ; when_ = Step.dummy
   ; priority = Path_priority.zero }
 
 (**

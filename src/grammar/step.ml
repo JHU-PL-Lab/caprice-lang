@@ -6,6 +6,9 @@ let compare (Step a) (Step b) =
 
 let zero = Step 0
 
+(** [dummy] is gauranteed to be smaller than all steps. *)
+let dummy = Step (-1)
+
 let[@inline] next (Step i : t) : t =
   Step (i + 1)
 

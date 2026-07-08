@@ -77,12 +77,6 @@ let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
 
   Because the state only tracks a stem instead of a full path, this only pushes
   to that stem if the step exceeds the target step.
-
-    TODO: when we fork, the target has the current step, so if the forked
-      computation immediately pushes, then this skips because the step is equal
-      to the target step. This seems like a problem, but we also get a loop if
-      we skip when strictly smaller step because of how targets are created
-      elsewhere. This needs to be fixed.
 *)
 let push_tag_to_path ~(alternatives : Tag.t list) (tag : Tag.t) : (unit, 'env) m =
   let* step = step in
@@ -90,7 +84,8 @@ let push_tag_to_path ~(alternatives : Tag.t list) (tag : Tag.t) : (unit, 'env) m
   if Step.compare step (Target.step target) <= 0 then
     return ()
   else
-    (* has reached the target, so we need to build the stem *)
+    (* This tag comes after the target tag, so it needs to be put on the stem
+      because the target does not know about it. *)
     modify (fun (s : State.t) ->
       let kind = Path_item.Tag { tag ; alternatives } in
       let path_item =
@@ -137,7 +132,8 @@ let push_formula_to_path ?(allow_flip : bool = true)
     if Step.compare step (Target.step target) <= 0 then
       return ()
     else
-      (* has reached the target, so we need to build the stem *)
+      (* This branch comes at a time after the target branch, so it needs to be
+        put on the stem since the target for this does not know about it. *)
       modify (fun (s : State.t) ->
         let kind =
           if allow_flip then
@@ -177,8 +173,10 @@ let read_and_log_input (kind : 'a Input.Kind.t) (input_env : Input_env.t)
 (**
   [target_to_here] is a target representing the path to the current program
     point. It is trivial to solve because its solution is the logged input
-    environment. The step of the target is the current step, so any computation
-    using this target as its context will begin _at_ the target, not after it.
+    environment. The step of the target is a dummy because everything after
+    here is necessarily not known to the target, so anything pushed to the path
+    (as long as steps are increasing) with this target will always get put on
+    the stem; the target knows nothing.
 
   The implementation is hand-rolled because of the value restriction.
 
@@ -198,7 +196,7 @@ let target_to_here : 'env. (Target.t, 'env) m =
         (Formula.BSet.union target.all_formulas (Stem.formulas state.stem))
         state.logged_inputs
         ~path_priority
-        ~when_:step
+        ~when_:Step.dummy
     ) state step
   }
 
