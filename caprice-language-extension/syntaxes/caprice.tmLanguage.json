@@ -79,7 +79,7 @@
         {
           "comment": "type operators",
           "name": "entity.name.function.caprice",
-          "match": "(->|-->)"
+          "match": "(->|~>)"
         },
         {
           "comment": "vertical bar for types/patterns",
