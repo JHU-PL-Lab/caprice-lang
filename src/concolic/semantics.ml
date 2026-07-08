@@ -75,7 +75,7 @@ let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
     the [alternatives] as the other inputs possible so that a target can be made
     from them.
 *)
-let push_tag_to_path ?(alternatives : Tag.t list = []) (tag : Tag.t) : (unit, 'env) m =
+let push_tag_to_path ~(alternatives : Tag.t list) (tag : Tag.t) : (unit, 'env) m =
   let* step = step in
   let* { Context.target ; _ } = read_ctx in
   modify (fun (s : State.t) ->
@@ -107,7 +107,7 @@ let log_input (kind : 'a Input.Kind.t) (a : 'a) : (unit, 'env) m =
     time.
 *)
 let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
-  let* () = push_tag_to_path tag in
+  let* () = push_tag_to_path ~alternatives:[] tag in
   log_input KTag tag
 
 (**
