@@ -153,6 +153,10 @@ let push_formula_to_path ?(allow_flip : bool = true)
     kind [kind], read from the current time. Does not log the input as read
     because the default behavior is to return [None], in which case there
     is no input to log.
+
+  If the input is a tag, then the caller is responsible for calling
+  [push_and_log_tag] afterwards without incrementing the step beforehand.
+  This is often done within forking.
 *)
 let read_input (kind : 'a Input.Kind.t) (input_env : Input_env.t) : ('a option, 'env) m =
   let* step = step in
@@ -162,6 +166,12 @@ let read_input (kind : 'a Input.Kind.t) (input_env : Input_env.t) : ('a option, 
   [read_and_log_input kind input_env ~default] is an input from [input_env]
     of the kind [kind], or [default] if the input was unplanned. Then, the
     input is logged as read from the environment, and it is returned.
+
+  VERY IMPORTANT:
+    If the input is a tag, then the caller is responsible for pushing that tag
+    to the path (with whatever alternatives) without incrementing the step
+    beforehand. This is not done here because the alternatives are not known.
+    Do this by calling [push_tag_to_path] immediately afterwards.
 *)
 let read_and_log_input (kind : 'a Input.Kind.t) (input_env : Input_env.t)
   ~(default : 'a) : ('a, 'env) m =
