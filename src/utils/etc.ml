@@ -5,13 +5,19 @@
 
   It is expected that this is used after pattern matching on the tuple
   [(x,y)] to assert that all equal constructor cases have been handled.
+
+  This is only to be used on ordinary variants and GADTs, not extensible
+  varints or other types.
 *)
 let[@inline] assert_uniq_ctor (x : 'a) (y : 'a) : unit =
   assert (
+    let type t = Tag of int | Const of int in
     let ctor_id x =
       let o = Obj.repr x in
-      if Obj.is_block o then Obj.tag o
-      else Obj.magic o  (* immediate constructor index *)
+      if Obj.is_block o then
+        Tag (Obj.tag o) (* has payload; tag is constructor id *)
+      else
+        Const (Obj.magic o) (* no payload; is represented as int *)
     in
     ctor_id x <> ctor_id y
   )
