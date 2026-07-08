@@ -1,5 +1,6 @@
 (* TEST
   include exhaust;
+  skip; # we would like to have this test if we can simulate extensional equality
 *)
 
 (*

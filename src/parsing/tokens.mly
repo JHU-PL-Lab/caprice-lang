@@ -26,6 +26,8 @@
 %token LET
 %token IN
 %token ARROW
+%token WAVY_ARROW
+%token INPUT
 %token MATCH
 %token END
 %token STRUCT

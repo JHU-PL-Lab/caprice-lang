@@ -1,4 +1,6 @@
-
+(* TEST
+  include exhaust;
+*)
 
 let zipper a = { left : list a ; right : list a }
 

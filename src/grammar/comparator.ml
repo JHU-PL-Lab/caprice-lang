@@ -20,13 +20,13 @@ module Make (M : Utils.Types.MONAD) = struct
   let ( let= ) x f =
     if x then f () else make false
 
-  let rec fold_lists (f : 'a -> 'a -> t) (x : 'a list) (y : 'a list) : t =
+  let rec reduce_lists (f : 'a -> 'a -> t) (x : 'a list) (y : 'a list) : t =
     match x, y with
     | [], [] -> make true
     | [], _ | _, [] -> make false
     | hdx :: xs, hdy :: ys ->
       let- () = f hdx hdy in
-      fold_lists f xs ys
+      reduce_lists f xs ys
 end
 
 include Make (Utils.Identity.Monad)

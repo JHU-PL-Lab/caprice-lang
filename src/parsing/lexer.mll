@@ -47,8 +47,10 @@ rule token = parse
 | "let"                { LET }
 | "in"                 { IN }
 | "->"                 { ARROW }
+| "~>"                 { WAVY_ARROW }
 | "false"              { BOOL false }
 | "true"               { BOOL true }
+| "input"              { INPUT }
 | "match"              { MATCH }
 | "end"                { END }
 | "struct"             { STRUCT }

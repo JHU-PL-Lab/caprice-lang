@@ -2,23 +2,6 @@
   include exhaust;
 *)
 
-let _ : (int -> int) -> int -> int =
-  fun f -> f
-
-let _ : (int -> int -> int) -> int =
-  fun f ->
-    let _ = f 0 in
-    0
-
-let _ : (int -> int -> int) -> int =
-  fun f ->
-    f 0 0 (* safe to apply *)
-
-let _ : ((int -> int) -> int) -> (int -> int) -> int =
-  fun f g ->
-    let _ = assert (f g == f g) in
-    f g
-
 (*
   Here is how we assert that X.t is the returned t
 *)
@@ -66,7 +49,7 @@ let _ =
   in
   f
 
-let _ : (bool -> int) -> bool -> unit =
+let _ : (bool -> int) ~> bool ~> unit =
   fun f b ->
     let ft = f true in
     if b then
@@ -74,13 +57,13 @@ let _ : (bool -> int) -> bool -> unit =
     else
       ()
 
-let _ : (singleton type -> int) -> singleton type -> singleton type -> int =
+let _ : (singleton type -> int) ~> singleton type ~> singleton type ~> int =
   fun f a b ->
     if f a == f b
     then 0
     else false
 
-let _ : ((int -> int) -> int) -> (int -> int) -> (int -> int) -> int =
+let _ : ((int ~> int) -> int) ~> (int ~> int) ~> (int ~> int) ~> int =
   fun f g h ->
     if f g == f g
     then 0

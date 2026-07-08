@@ -4,19 +4,9 @@
 
 let t = int * (int -> int)
 
-(*
-  If we pick witnesses on which we run functions in order to compare them,
-  we see that it's easy to be off by one.
-  This test shows that the number of witnesses does not always align with
-  the number of entries in the table.
-
-  It is obviously well typed. It is moreso checking the type checker
-  internals; it should be able to handle this without breaking on assumptions
-  about the number of witnesses.
-*)
 let f (g : t -> int) : unit =
   let i = g (0, fun a -> a) in
-  let _ = g (1, fun b -> b*2) in (* short circuit using left side, so no witness needed *)
-  let j = g (0, fun c -> c*0) in (* makes a witness to compare against fun a -> a *)
-  let k = g (0, fun d -> d*3) in (* fourth entry but only needs a second witness! *)
+  let _ = g (1, fun b -> b*2) in
+  let j = g (0, fun c -> c*0) in
+  let k = g (0, fun d -> d*3) in
   ()

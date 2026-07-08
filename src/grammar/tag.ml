@@ -1,7 +1,6 @@
 
 type reason =
   | GenList             (* generate empty or cons *)
-  | ChooseEmptyFun      (* choose to compare to empty or real function *)
   | CheckList           (* check hd or tl *)
   | CheckTuple          (* check left or right side of tuple *)
   | CheckSingleton      (* check subset or superset or intensional equality *)
@@ -14,7 +13,6 @@ type reason =
 
 let reason_to_string = function
   | GenList             -> "Generate list"
-  | ChooseEmptyFun      -> "Chose empty function for comparison"
   | CheckList           -> "Check list"
   | CheckTuple          -> "Check tuple"
   | CheckSingleton      -> "Check singleton"

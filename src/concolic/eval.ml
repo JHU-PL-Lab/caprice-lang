@@ -47,7 +47,7 @@ let eval
       let* () = push_and_log_tag @@ Right reason in
       right
     in
-    let* l_opt = read_input KTag input_env in
+    let* l_opt = allow_inputs (read_input KTag input_env) in
     match l_opt with
     | Some Left reason' when reason = reason' -> run_left
     | Some Right reason' when reason = reason' -> run_right
@@ -99,13 +99,13 @@ let eval
         fork_on_left ~reason:ApplGenFun
           ~left:(check v_arg domain)
           ~right:(eval_appl vfun v_arg)
-      | Any (VWrapped { data ; tau } as self_fun) ->
+      | Any (VWrapped { data ; funtype } as self_fun) ->
         let* v_arg = eval arg in
         fork_on_left ~reason:ApplWrappedFun
-          ~left:(check v_arg tau.domain)
+          ~left:(check v_arg funtype.domain)
           ~right:(
             let* v_res = eval_appl ~self_fun data v_arg in
-            let* tval = eval_codomain tau.codomain v_arg in
+            let* tval = eval_codomain funtype.codomain v_arg in
             wrap v_res tval
           )
       | _ -> mismatch @@ apply_non_function v_func
@@ -166,6 +166,10 @@ let eval
       let* v = eval e in
       return_any (VTypeSingle v)
     (* symbolic values and branching *)
+    | EPick_i ->
+      let* step = step in
+      let* i = read_and_log_input KInt input_env ~default:(default_int ()) in
+      return_any (VInt (i, Stepkey.int_symbol step))
     | ENot e ->
       let* v = force_eval e in
       begin match v with
@@ -219,14 +223,14 @@ let eval
         Record.Label.Map.mapM (module Semantics) eval_type t_record_body
       in
       return_any (VTypeRecord record_body)
-    | ETypeFun { domain = None, tau ; codomain } ->
+    | ETypeFun { domain = None, tau ; codomain ; mode } ->
       let* dom_t = eval_type tau in
       let* cod_t = eval_type codomain in
-      return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t })
-    | ETypeFun { domain = Some id, tau ; codomain } ->
+      return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t ; mode })
+    | ETypeFun { domain = Some id, tau ; codomain ; mode } ->
       let* dom_t = eval_type tau in
       let* env = read in
-      return_any (VTypeFun { domain = dom_t
+      return_any (VTypeFun { domain = dom_t ; mode
         ; codomain = CodDependent (id, { captured = codomain ; env }) })
     | ETypeRefine { var ; tau ; predicate } ->
       let* tval = eval_type tau in
@@ -313,17 +317,16 @@ let eval
     EVALUATE APPLICATIONS
     ---------------------
 
-    Always takes the evaluation side. Does not do any checking.
-    Does not push any labels corresponding to the evaluation.
-    Does not wrap the result. Does not accept wrapped values as
-    function to apply.
+    Always takes the evaluation side. Does not do any checking. Does not push
+    any labels corresponding to the evaluation. Does not wrap the result. Does
+    not accept wrapped values as function to apply.
 
-    ?self_fun is the optional value to put in the environment as
-    the self for recursive functions, in case of wrapping.
-    The default value is the actual fixed function.
+    ?self_fun is the optional value to put in the environment as the self for
+    recursive functions, in case of wrapping. The default value is the actual
+    fixed function.
 
-    This does not use a monadic environment, so the environment is
-    universally quantified.
+    This does not use a monadic environment, so the environment is universally
+    quantified.
   *)
   and eval_appl
     : 'env. Val.dval -> ?self_fun:Val.dval -> Val.any -> (Val.any, 'env) m
@@ -339,17 +342,21 @@ let eval
           Env.set fvar (Any self_fun) env
           |> Env.set param v_arg
         ) (eval captured)
-    | VGenFun { funtype = { domain ; codomain } ; table } ->
-      let* mappings = get_cell table in
+    | VGenFun { funtype = { domain = _ ; codomain ; mode = Nondet } ; table } ->
+      assert (Option.is_none table);
+      let* cod_tval = eval_codomain codomain v_arg in
+      gen cod_tval
+    | VGenFun { funtype = { domain = _ ; codomain ; mode = Det } ; table } ->
+      let cell = Option.get table in
+      let* mappings = get_cell cell in
       let rec find_output = function
         | [] ->
           let* cod_tval = eval_codomain codomain v_arg in
-          let* genned = gen cod_tval in
-          let* cmp = make_comparable domain v_arg in
-          let* () = set_cell table (mappings @ [(cmp, genned)]) in
+          let* genned = allow_inputs (gen cod_tval) in
+          let* () = set_cell cell (mappings @ [(v_arg, genned)]) in (* TODO: can be cons, I think *)
           return genned
-        | (cmp, output) :: tl ->
-          let* (b, s) = extensional_equal cmp v_arg in
+        | (input, output) :: tl ->
+          let (b, s) = intensional_equal input v_arg in
           if b then
             let* () = push_formula_to_path s in
             return output
@@ -473,21 +480,27 @@ let eval
     | VType ->
       let* v = force_value v in
       handle_any v ~dat:(fun _ -> refute) ~typ:(fun _ -> confirm)
-    | VTypeFun { domain ; codomain } ->
+    | VTypeFun { domain ; codomain ; mode } ->
       let* v = force_value v in
       begin match v with
       | Any (VFunClosure _ as vfun)
       | Any (VFunFix _ as vfun) ->
-        let* genned = gen domain in
-        let* res = eval_appl vfun genned in
+        let* genned = allow_inputs (gen domain) in
+        let* res = local_mode mode (eval_appl vfun genned) in
         let* cod_tval = eval_codomain codomain genned in
         check res cod_tval
-      | Any (VGenFun { funtype = { domain = domain' ; codomain = codomain' } ; _ } as v_candidate) ->
+      | Any (VGenFun { funtype ; _ } as v_candidate) ->
+        (* checked value gets primes *)
+        let { Funtype.domain = domain' ; codomain = codomain' ; mode = mode' } =
+          funtype
+        in
+        (* We now check if the primed-function is a subtype of nonprimes. *)
         fork_on_left ~reason:CheckGenFun
           ~left:(domain <: domain')
           ~right:(
-            if Val.equal_fun_cod codomain codomain' then confirm else
-            let* v_arg = gen domain in
+            if Val.equal_fun_cod codomain codomain'
+              && Funtype.equal_mode mode mode' then confirm else
+            let* v_arg = allow_inputs (gen domain) in
             (*
               Since we can assume domain <: domain', it's possible
               that codomain' can misuse genned with respect to
@@ -495,11 +508,24 @@ let eval
               check that codomain' does not misuse it.
             *)
             let* w_arg = wrap v_arg domain' in
-            let* res = eval_appl v_candidate w_arg in
+            let* res = local_mode mode (eval_appl v_candidate w_arg) in
             let* cod_tval = eval_codomain codomain w_arg in
             check res cod_tval
+            (* TODO: or is this instead this?
+              local_mode mode (
+                let* res = eval_appl v_candidate w_arg in
+                let* cod_tval = eval_codomain codomain w_arg in
+                check res cod_tval
+              )
+
+              Also consider the same code in the cases below producing `res`.
+            *)
           )
-      | Any (VWrapped { data ; tau = { domain = domain' ; codomain = codomain' } } as self_fun) ->
+      | Any (VWrapped { data ; funtype } as self_fun) ->
+        (* checked value gets primes *)
+        let { Funtype.domain = domain' ; codomain = codomain' ; mode = mode' } =
+          funtype
+        in
         fork_on_left ~reason:CheckWrappedFun
           ~left:(domain <: domain')
           ~right:(
@@ -510,24 +536,30 @@ let eval
               We can skip the work on the right if the codomains are equal
                 because the wrapper means it has been checked.
             *)
-            if Val.equal_fun_cod codomain codomain' then confirm else
+            if Val.equal_fun_cod codomain codomain'
+              && Funtype.equal_mode mode mode' then confirm else
             match data with
             | VFunClosure _
             | VFunFix _ ->
-              let* v_arg = gen domain in
-              let* cod_tval = eval_codomain codomain v_arg in
+              let* v_arg = allow_inputs (gen domain) in
+              let* cod_tval = eval_codomain codomain v_arg in (* TODO: mode on this? *)
               let* w_arg = wrap v_arg domain' in
-              let* res = eval_appl data ~self_fun v_arg in
+              let* res = local_mode mode (eval_appl data ~self_fun v_arg) in
               let* cod_tval' = eval_codomain codomain' w_arg in
               let* w_res = wrap res cod_tval' in
               check w_res cod_tval
-            | VGenFun { funtype = { domain = domain'' ; codomain = codomain'' } ; _ } ->
+            | VGenFun { funtype ; _ } ->
+              (* wrapping type gets double primes *)
+              let { Funtype.domain = domain'' ; codomain = codomain'' ; mode = mode'' } =
+                funtype
+              in
+              let mode = Funtype.merge_mode mode mode'' in
               fork_on_left ~reason:CheckGenFun
                 ~left:(domain <: domain'')
                 ~right:(
-                  let* v_arg = gen domain in
+                  let* v_arg = allow_inputs (gen domain) in
                   let* w_arg = wrap v_arg domain' in
-                  let* res = eval_appl data w_arg in
+                  let* res = local_mode mode (eval_appl data w_arg) in
                   (*
                     Since codomain'' has already been evaluated depending on any
                     v in domain' wrapped with domain'', we know that codomain''
@@ -605,11 +637,11 @@ let eval
         | LLazy LGenList _ ->
           check v t_body
         | LLazy LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
-          let* a = gen VType in (* fresh type to use as a stub *)
+          let* a = allow_inputs (gen VType) in (* fresh type to use as a stub *)
           let* t_body = local' (Env.set var a env) (eval_type captured) in
           let* t_body' = local' (Env.set var' a env') (eval_type captured') in
           if Val.equal t_body t_body' && wrapping_types = [] then confirm else
-          let* genned = gen t_body' in
+          let* genned = allow_inputs (gen t_body') in
           let* wrapped = wrap_multi wrapping_types genned in
           check wrapped t_body
         end
@@ -629,7 +661,7 @@ let eval
           tval_mu_body <: t
         | LLazy LGenList t' ->
           if wrapping_types = [] && Val.equal t' t_body then confirm else
-          let* genned = gen t' in
+          let* genned = allow_inputs (gen t') in
           (* genned is only a single element of the list, so wrap it
             by extracting the type bodies out of the list type *)
           let* wrapping_bodies =
@@ -707,7 +739,7 @@ let eval
       if Record.Label.Set.subset t_labels v_labels then
         (* incr step because about to read an input *)
         let* () = incr_step ~max_step in
-        let* l_opt = read_input KTag input_env in
+        let* l_opt = allow_inputs (read_input KTag input_env) in
         let push_and_check label =
           let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
           check_label label
@@ -745,7 +777,7 @@ let eval
       if Val.equal t1 t2 then
         escape Confirmation
       else
-        let* genned = gen t1 in
+        let* genned = allow_inputs (gen t1) in
         check genned t2
 
   (*
@@ -771,7 +803,14 @@ let eval
       let* b = read_and_log_input KBool input_env ~default:(default_bool ()) in
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun funtype ->
-      let* table = new_cell [] in
+      let* table =
+        match funtype.mode with
+        | Det ->
+          let* cell = new_cell [] in
+          return (Some cell)
+        | Nondet ->
+          return None
+      in
       return_any (VGenFun { funtype ; table })
     | VType ->
       let* Step id = step in (* will use step for a fresh integer *)
@@ -814,6 +853,7 @@ let eval
       end
     | VTypeList t ->
       if do_splay then
+        let* () = assert_inputs_allowed in
         let* l = new_lazy_cell (LGenList t) in
         return_any l
       else
@@ -832,6 +872,9 @@ let eval
       end
     | VTypeMu { var ; closure } ->
       if do_splay then
+        (* Be overly cautious and assume that the generated value will have
+          several choices when it is finally genned and hence uses an input. *)
+        let* () = assert_inputs_allowed in
         let* lgen = new_lazy_cell (LGenMu { var ; closure }) in
         return_any lgen
       else
@@ -958,11 +1001,11 @@ let eval
       end
     | VTypeFun tfun ->
       begin match v with
-      | Any VWrapped { data ; tau = _ } ->
-        return_any (VWrapped { data ; tau = tfun })
+      | Any VWrapped { data ; funtype = _ } ->
+        return_any (VWrapped { data ; funtype = tfun })
       | Any v' ->
         handle v'
-          ~dat:(fun data -> return_any (VWrapped { data ; tau = tfun }))
+          ~dat:(fun data -> return_any (VWrapped { data ; funtype = tfun }))
           ~typ:(fun _ -> return v)
       end
     | VTypeRecord t_body ->
@@ -1159,8 +1202,12 @@ let eval
       return v
 
   (*
-    Forces the value to weak head normal form and wraps
-    with any lazily-done wrappings.
+    Forces the value to weak head normal form and wraps with any lazily-done
+    wrappings.
+
+    Since it is asserted that inputs are allowed when the lazy value is made, we
+    allow all inputs here. The inputs here only realize any choices that could
+    have been made when the lazy value was first created.
   *)
   and resolve_lazy
     : 'env. Val.lazy_cell -> (Val.any, 'env) m
@@ -1172,8 +1219,8 @@ let eval
       | LLazy lv ->
         let* genned =
           match lv with
-          | LGenMu { var ; closure } -> force_gen_mu var closure
-          | LGenList t -> force_gen_list t
+          | LGenMu { var ; closure } -> allow_inputs (force_gen_mu var closure)
+          | LGenList t -> allow_inputs (force_gen_list t)
         in
         let* () = set_cell cell (LValue genned) in
         return genned
@@ -1181,212 +1228,6 @@ let eval
         return v_any
     in
     wrap_multi wrapping_types v_any
-
-  (*
-    --------------------
-    EXTENSIONAL EQUALITY
-    --------------------
-  *)
-  and extensional_equal
-    : type env. Val.comparable -> Val.any -> (bool Cdata.t, env) m
-    = fun c v ->
-    let open Semantics.Comparator (struct type nonrec env = env end) in
-    match v with
-    | Any VLazy { cell ; wrapping_types = _ } ->
-      let* vlazy = get_cell cell in
-      begin match vlazy with
-      | LValue any ->
-        (* The lazy value has been pulled on, so use known value *)
-        extensional_equal c any
-      | LLazy _ ->
-        (* The value is lazy. Do not pull on it. *)
-        begin match c with
-        | CLazy cmp_cell ->
-          (* The comparable is also lazy. See if it has been pulled on. *)
-          let* cmp_lazy = get_cell cmp_cell in
-          begin match cmp_lazy with
-          | LWaiting (cell', _) ->
-            (* Incomplete: these values _could_ be equal, but we say they are
-              equal here only if they are the same cell. In most cases, they
-              are not equal. *)
-            make (cell = cell')
-          | LComp cmp ->
-            (* The comparable has been pulled on. Continue with this one. *)
-            extensional_equal cmp v
-          end
-        | _ ->
-          (* Do not pull on values. Say false. *)
-          make false
-        end
-      end
-    | _ ->
-      match c with
-      | CSingle -> return Cdata.true_
-      | CIntensional v' ->
-        return (Val.intensional_equal v v')
-      | CFun { tfun = { domain ; codomain } ; mapping } ->
-        let* comp_fun = get_cell mapping in
-        let eq arg mapsto =
-          Val.handle_any v ~dat:(fun f ->
-            let* res = eval_appl (Val.discard_wrapper f) arg in
-            extensional_equal mapsto res
-          ) ~typ:(fun _ -> make false)
-        in
-        begin match comp_fun with
-        | FWaiting v_func ->
-          let* () = incr_step ~max_step in
-          let* tag = read_and_log_input KTag input_env ~default:(Left ChooseEmptyFun) in
-          begin match tag with
-          | Left ChooseEmptyFun ->
-            let* () = push_tag_to_path ~alternatives:[ Right ChooseEmptyFun ] tag in
-            let* () = set_cell mapping FEmpty in
-            make true
-          | Right ChooseEmptyFun ->
-            let* () = push_tag_to_path ~alternatives:[ Left ChooseEmptyFun ] tag in
-            let* arg = gen domain in
-            let* result = eval_appl v_func arg in
-            let* cod_tval = eval_codomain codomain arg in
-            let* mapsto = make_comparable cod_tval result in
-            let* () = set_cell mapping (FMapping { arg ; mapsto }) in
-            eq arg mapsto
-          | _ ->
-            raise bad_input_env
-          end
-        | FMapping { arg ; mapsto } ->
-          eq arg mapsto
-        | FEmpty ->
-          (* Everything equals the empty table *)
-          make true
-        end
-      | CLazy cell ->
-        let* cmp_lazy = get_cell cell in
-        begin match cmp_lazy with
-        | LComp cmp -> extensional_equal cmp v
-        | LWaiting (cmp_v_cell, t) ->
-          let* vlazy = get_cell cmp_v_cell in
-          begin match vlazy with
-          | LValue v_cmp ->
-            (* The value has been pulled on, so we have enough information now
-              to construct a comparable. Do so, update the cell, and use it. *)
-            let* cmp = make_comparable t v_cmp in
-            let* () = set_cell cell (LComp cmp) in
-            extensional_equal cmp v
-          | LLazy _ ->
-            make false (* the v = lazy case is handled above *)
-          end
-        end
-      | CTuple (c1, c2) ->
-        begin match v with
-        | Any VTuple (v1, v2) ->
-          let- () = extensional_equal c1 v1 in
-          extensional_equal c2 v2
-        | _ -> make false
-        end
-      | CEmptyList ->
-        begin match v with
-        | Any VEmptyList -> make true
-        | _ -> make false
-        end
-      | CListCons (c_hd, c_tl) ->
-        begin match v with
-        | Any VListCons { hd ; tl } ->
-          let- () = extensional_equal c_hd hd in
-          extensional_equal c_tl (Any tl)
-        | _ -> make false
-        end
-      | CRecord m ->
-        begin match v with
-        | Any VRecord record_body ->
-          Record.fold (fun l cmp acc ->
-            let- () = acc in
-            match Record.Label.Map.find_opt l record_body with
-            | Some x -> extensional_equal cmp x
-            | _ -> mismatch "missing record label"
-          ) (make true) m
-        | _ -> make false
-        end
-      | CVariant { label = c_label ; payload = c_payload } ->
-        begin match v with
-        | Any VVariant { label ; payload } ->
-          let= () = Variant.Label.equal c_label label in
-          extensional_equal c_payload payload
-        | _ ->
-          make false
-        end
-
-  and make_comparable
-    : 'env. Val.tval -> Val.any -> (Val.comparable, 'env) m
-    = fun t v ->
-    match v with
-    | Any VLazy { cell ; wrapping_types = _ } ->
-      let* vlazy = get_cell cell in
-      begin match vlazy with
-      | LLazy _ ->
-        let* cmp_cell = new_cell (LWaiting (cell, t)) in
-        return (CLazy cmp_cell)
-      | LValue any -> make_comparable t any
-      end
-    | _ ->
-      match t with
-      | VType
-      | VTypeUnit
-      | VTypeTop
-      | VTypeInt
-      | VTypeBool
-      | VTypePoly _
-      | VTypeModule _ -> return (CIntensional v)
-      | VTypeSingle _ -> return CSingle
-      | VTypeBottom -> escape (Refutation (v, t))
-      | VTypeMu { var ; closure } ->
-        let* t_body = unroll_mu var closure in
-        make_comparable t_body v
-      | VTypeList t_body ->
-        begin match v with
-        | Any VEmptyList -> return CEmptyList
-        | Any VListCons { hd ; tl } ->
-          let* c_hd = make_comparable t_body hd in
-          let* c_tl = make_comparable t (Any tl) in
-          return (CListCons (c_hd, c_tl))
-        | _ -> vanish
-        end
-      | VTypeFun tfun ->
-        handle_any v ~dat:(fun f ->
-          let* cell = new_fun_cell (Val.discard_wrapper f) in
-          return (CFun { tfun ; mapping = cell })
-        ) ~typ:(fun _ -> vanish)
-      | VTypeRecord m ->
-        begin match v with
-        | Any VRecord record_body ->
-          let mk l t =
-            match Record.Label.Map.find_opt l record_body with
-            | Some v_body -> make_comparable t v_body
-            | None -> vanish
-          in
-          let* c_rec = Record.Label.Map.mapiM (module Semantics) mk m in
-          return (CRecord c_rec)
-        | _ -> vanish
-        end
-      | VTypeVariant m ->
-        begin match v with
-        | Any VVariant { label ; payload } ->
-          begin match Variant.Label.Map.find_opt label m with
-          | Some t_body ->
-            let* cmp = make_comparable t_body payload in
-            return (CVariant { label ; payload = cmp })
-          | None -> vanish
-          end
-        | _ -> vanish
-        end
-      | VTypeRefine { var = _ ; tau ; predicate = _ } ->
-        make_comparable tau v
-      | VTypeTuple (t1, t2) ->
-        begin match v with
-        | Any VTuple (v1, v2) ->
-          let* c1 = make_comparable t1 v1 in
-          let* c2 = make_comparable t2 v2 in
-          return (CTuple (c1, c2))
-        | _ -> vanish
-        end
 
   in
 

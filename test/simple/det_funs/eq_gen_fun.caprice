@@ -2,8 +2,7 @@
   include refute;
 *)
 
-let _ : ((int -> int) -> int) -> (int -> int) -> (int -> int) -> int =
-  fun f g h ->
-    if f g == f h
-    then 0
-    else true (* ERROR: g and h are different so f g is not the same as f h *)
+let test (f : (int ~> int) -> int) (g : int -> int) (h : int -> int) : int =
+  if f g == f h
+  then 0
+  else true (* ERROR: g and h are different so f g is not the same as f h *)

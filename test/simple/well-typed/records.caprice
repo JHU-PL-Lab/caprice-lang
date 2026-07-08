@@ -47,7 +47,8 @@ let g : t =
 
 (* several paths to the same check *)
 
-let _ : int -> unit = fun x ->
+let _ =
+  let x = input in
   if x > 0
   then
     let _ : { a : int ; b : bool } = { a = x ; b = true } in

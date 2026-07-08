@@ -6,9 +6,9 @@ let mk_curried_fun params body =
     EFunction { param ; body }
   ) params body
 
-let mk_curried_funtype params codomain =
+let mk_curried_funtype params codomain mode =
   List.fold_right (fun (_, domain) codomain ->
-    ETypeFun { domain ; codomain }
+    ETypeFun { domain ; codomain ; mode }
   ) params codomain
 
 let extract_param_names params =

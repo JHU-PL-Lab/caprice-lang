@@ -16,6 +16,7 @@ type t =
   | EListCons of { hd : t ; tl : t }
   | EModule of statement list
   | ENot of t
+  | EPick_i
   | EFunction of { param : Ident.t ; body : t }
   | EVariant of t Variant.t
   | EAssert of t

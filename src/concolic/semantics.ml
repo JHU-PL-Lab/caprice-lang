@@ -21,7 +21,14 @@ module State = struct
 end
 
 module Context = struct
-  type t = { target : Target.t } [@@unboxed]
+  type det_context =
+    | Allowed
+    | Disallowed
+
+  type t =
+    { target : Target.t
+    ; det_context : det_context
+    }
 end
 
 include Monad
@@ -30,11 +37,6 @@ type ('a, 'env) m = ('a, < err : Eval_result.t ; env : 'env ; state : State.t ; 
 
 module Matches = Val.Make_match (struct
   type nonrec 'a m = ('a, Val.Env.t) m
-  include (Monad : Utils.Types.MONAD with type 'a m := 'a m)
-end)
-
-module Comparator (T : sig type env end) = Comparator.Make (struct
-  type nonrec 'a m = ('a, T.env) m
   include (Monad : Utils.Types.MONAD with type 'a m := 'a m)
 end)
 
@@ -69,6 +71,16 @@ let vanish : 'a 'env. ('a, 'env) m =
 
 let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
   escape (Eval_result.Mismatch msg)
+
+(**
+  [assert_inputs_allowed] is a failure if the context disallows inputs.
+*)
+let assert_inputs_allowed : 'env. (unit, 'env) m =
+  { run = fun ~reject ~accept state step _ ctx ->
+    match ctx.det_context with
+    | Allowed -> accept () state step
+    | Disallowed -> reject (Mismatch "Nondeterminism used when not allowed") state
+  }
 
 (**
   [push_tag_to_path ?alternatives tag] pushes [tag] onto the path stem, and records
@@ -159,6 +171,7 @@ let push_formula_to_path ?(allow_flip : bool = true)
   This is often done within forking.
 *)
 let read_input (kind : 'a Input.Kind.t) (input_env : Input_env.t) : ('a option, 'env) m =
+  let* () = assert_inputs_allowed in
   let* step = step in
   return (Input_env.find kind (Stepkey step) input_env)
 
@@ -220,8 +233,9 @@ let target_to_here : 'env. (Target.t, 'env) m =
     so that the effect is handled.
 *)
 let fork (forked_m : 'a. ('a, 'env) m) : (unit, 'env) m =
+  let* { Context.det_context ; _ } = read_ctx in
   let* target = target_to_here in
-  fork forked_m { target }
+  fork forked_m { target ; det_context }
     ~setup_state:(fun state -> { state with stem = Stem.empty })
     ~restore_state:
       (fun e ~og ~forked_state ->
@@ -262,20 +276,40 @@ let new_cell
   let* () = set_cell key a in
   return key
 
-let new_fun_cell
-  : 'env. Val.dval -> (Val.cmp_fun Utils.Cell.t, 'env) m
-  = fun f ->
-  new_cell (Val.FWaiting f)
-
 let new_lazy_cell : 'env. Val.lgen -> (Val.dval, 'env) m = fun lgen ->
   let* cell = new_cell (Val.LLazy lgen) in
   return (Val.VLazy { cell ; wrapping_types = [] })
+
+(**
+  [disallow_inputs x] runs [x] such that any [assert_inputs_allowed]
+    is a failure.
+*)
+let[@inline] disallow_inputs (x : ('a, 'env) m) : ('a, 'env) m =
+  local_ctx (fun (ctx : Context.t) -> { ctx with det_context = Disallowed }) x
+
+(**
+  [allow_inputs x] runs [x] such that any [assert_inputs_allowed]
+    is NOT a failure.
+*)
+let[@inline] allow_inputs (x : ('a, 'env) m) : ('a, 'env) m =
+  local_ctx (fun (ctx : Context.t) -> { ctx with det_context = Allowed }) x
+
+(**
+  [local_mode mode x] runs [x] in the context based on
+    the [mode] of the function type that is being checked.
+
+    The context disallows inputs if the mode is deterministic.
+*)
+let local_mode (mode : Funtype.mode) (x : ('a, 'env) m) : ('a, 'env) m =
+  match mode with
+  | Nondet -> x
+  | Det -> disallow_inputs x
 
 (**
   [run x target] runs [x] with [target] as the context, beginning with
     empty state and environment.
 *)
 let run (x : ('a, Val.Env.t) m) (target : Target.t) : Eval_result.t * State.t =
-  match run x State.empty Env.empty { target } with
+  match run x State.empty Env.empty { target ; det_context = Allowed } with
   | Ok _, state -> Done, state
   | Error e, state -> e, state

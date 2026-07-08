@@ -1,5 +1,5 @@
 (* TEST
-  include exhaust;
+  include refute;
 *)
 
 (*
@@ -14,8 +14,12 @@ end
 (*
   Module type that is itself parameterized.
   The type t has no parameter.
+
+  ERROR: (type a) ~> ... needs to be deterministic because
+    the value with type S0 is used in several spots later and
+    is expected to be the same.
 *)
-let S0 = (type a) -> sig
+let S0 = (type a) ~> sig
   val t : type
   val return : a -> t
   val appl : t -> (a -> a) -> t
@@ -50,32 +54,28 @@ end
 
 let Identity0 = F Identity1
 
-let config = { b1 : bool ; b2 : bool ; b3 : bool }
+(* optionally apply no-op *)
+let Id1 = if input == 0 then NoOp Identity1 else Identity1
+let Id0 = if input == 0 then NoOp' Identity0 else Identity0
 
-let Make (c : config) : sig end = struct
-  (* optionally apply no-op *)
-  let Id1 = if c.b1 then NoOp Identity1 else Identity1
-  let Id0 = if c.b2 then NoOp' Identity0 else Identity0
+let pick_t t1 t2 =
+  if input == 0 then
+    t1
+  else
+    t2
 
-  let pick_t t1 t2 =
-    if c.b3 then
-      t1
-    else
-      t2
+(*
+  Check that the forms are equivalent by exhausting the combinations.
+*)
+let check_ret (type a) (x : a) (b : bool) : pick_t (Id1.t a) (Id0 a).t =
+  if b then
+    Id1.return a x
+  else
+    (Id0 a).return x
 
-  (*
-    Check that the forms are equivalent by exhausting the combinations.
-  *)
-  let check_ret (type a) (x : a) (b : bool) : pick_t (Id1.t a) (Id0 a).t =
-    if b then
-      Id1.return a x
-    else
-      (Id0 a).return x
-
-  let check_appl (type a) (x : pick_t (Id1.t a) (Id0 a).t)
-    (f : a -> a) (b : bool) : pick_t (Id1.t a) (Id0 a).t =
-    if b then
-      Id1.appl a x f
-    else
-      (Id0 a).appl x f
-end
+let check_appl (type a) (x : pick_t (Id1.t a) (Id0 a).t)
+  (f : a -> a) (b : bool) : pick_t (Id1.t a) (Id0 a).t =
+  if b then
+    Id1.appl a x f
+  else
+    (Id0 a).appl x f

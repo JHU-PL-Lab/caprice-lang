@@ -3,6 +3,8 @@
   open Ast
   open Binop
   open Tools
+
+  let default_mode = Funtype.Det
 %}
 
 %parameter<Param : Param.S>
@@ -25,7 +27,7 @@
 %right DOUBLE_COLON           /* :: */
 %right prec_variant_pattern   /* variant destruction pattern */
 %left PLUS MINUS              /* + - */
-%right ARROW                  /* -> for type declaration */
+%right ARROW WAVY_ARROW       /* -> and ~> for type declaration */
 %left ASTERISK SLASH PERCENT  /* * / % */
 
 (* HACK: Precedence declarations to resolve (type a) -> t parsing.
@@ -57,13 +59,13 @@ statement:
   | LET name=l_ident params=l_ident+ EQUALS body=expr
     { SLet { name ; annot = ANone ; defn = mk_curried_fun params body } }
   | LET name=l_ident tparams=typed_params COLON body_type=expr EQUALS body=expr
-    { SLet { name ; annot = AType { tau = (mk_curried_funtype tparams body_type) ; do_check = true }
+    { SLet { name ; annot = AType { tau = (mk_curried_funtype tparams body_type default_mode) ; do_check = true }
       ; defn = mk_curried_fun (extract_param_names tparams) body } }
   | LET REC name=l_ident param=l_ident params=l_ident* EQUALS body=expr
     { SLetRec { name ; annot = ANone ; param ; defn = mk_curried_fun params body } }
   | LET REC name=l_ident tparams=typed_params COLON body_type=expr EQUALS body=expr
     { SLetRec { name
-      ; annot = AType { tau = (mk_curried_funtype tparams body_type) ; do_check = true }
+      ; annot = AType { tau = (mk_curried_funtype tparams body_type default_mode) ; do_check = true }
       ; param = fst (List.hd tparams)
       ; defn = mk_curried_fun (List.tl (extract_param_names tparams)) body } }
   | LET REC b=binding EQUALS FUNCTION param=l_ident params=l_ident* ARROW body=expr
@@ -133,6 +135,12 @@ expr:
     { EMatch { subject ; patterns } }
   ;
 
+%inline arrow:
+  | ARROW
+    { Funtype.Det }
+  | WAVY_ARROW
+    { Funtype.Nondet }
+
 %inline type_expr:
   | ioption(PIPE) v_type=variant_type_body
     { ETypeVariant v_type }
@@ -144,14 +152,14 @@ expr:
 
 %inline function_type:
   (* regular function *)
-  | tdom=expr ARROW codomain=expr
-    { ETypeFun { domain = None, tdom ; codomain } }
+  | tdom=expr mode=arrow codomain=expr
+    { ETypeFun { domain = None, tdom ; codomain ; mode } }
   (* standard dependent function type *)
-  | OPEN_PAREN pair=typed_name CLOSE_PAREN ARROW codomain=expr
-    { ETypeFun { domain = Some (fst pair), snd pair ; codomain } }
-  | OPEN_PAREN TYPE type_ids=ident+ CLOSE_PAREN ARROW codomain=expr
+  | OPEN_PAREN pair=typed_name CLOSE_PAREN mode=arrow codomain=expr
+    { ETypeFun { domain = Some (fst pair), snd pair ; codomain ; mode } }
+  | OPEN_PAREN TYPE type_ids=ident+ CLOSE_PAREN mode=arrow codomain=expr
     { List.fold_right (fun type_id acc ->
-      ETypeFun { domain = Some type_id, EType ; codomain = acc }
+      ETypeFun { domain = Some type_id, EType ; codomain = acc ; mode }
       ) type_ids codomain }
   ;
 
@@ -183,6 +191,8 @@ primary_expr:
     { EBool $1 }
   | ident_usage
     { $1 }
+  | INPUT
+    { EPick_i }
   | TYPE
     { EType }
   | INT_KEYWORD

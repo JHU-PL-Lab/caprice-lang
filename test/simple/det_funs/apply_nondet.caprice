@@ -1,0 +1,8 @@
+(* TEST
+  include refute;
+*)
+
+let _ : (int -> int ~> int) -> int =
+  fun f ->
+    let g = f 0 in (* no problems *)
+    g 1 (* ERROR: g can behave nondeterministically *)

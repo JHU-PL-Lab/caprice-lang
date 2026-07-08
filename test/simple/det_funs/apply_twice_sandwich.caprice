@@ -5,15 +5,10 @@
 let pgm (f : (int -> int) -> int) : unit =
   (* put an entry into f *)
   let _ = f (fun y -> y * 0) in
-  (* This will look the same as the above on 1 input *)
+  (* Now put the entry we care about *)
   let j = f (fun x -> x) in
   (* Put another entry into f *)
   let _ = f (fun z -> z + 1) in
-  (* Now that `f` has more entries, this is different from the zero
-    function on more than 1 input, so this is a different result
-    than j. This is evidence that with each step down the table,
-    we have to try more entries. I still believe that n witnesses
-    for n entries is sufficient, but it's just challenging to get
-    this right lazily. *)
+  (* We should still get the same output as an ealier call *)
   let k = f (fun x -> x) in
   assert (j == k)

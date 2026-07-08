@@ -29,11 +29,11 @@ module Make (Atom_cell : Utils.Types.P1) = struct
     | VListCons : { hd : any ; tl : dat t } -> dat t
     (* generated values *)
     | VGenFun : { funtype : (typ t, fun_cod) Funtype.t
-                ; table : table Utils.Cell.t } -> dat t
+                ; table : table Utils.Cell.t option } -> dat t
     | VGenPoly : { id : int ; nonce : int } -> dat t
     | VLazy : lazy_cell -> dat t (* lazily evaluated thing, so state must manage this *)
     (* wrapped values *)
-    | VWrapped : { data : dat t ; tau : (typ t, fun_cod) Funtype.t } -> dat t
+    | VWrapped : { data : dat t ; funtype : (typ t, fun_cod) Funtype.t } -> dat t
     (* type values only *)
     | VType : typ t
     | VTypePoly : { id : int } -> typ t
@@ -54,7 +54,7 @@ module Make (Atom_cell : Utils.Types.P1) = struct
 
   and 'a closure = { captured : 'a ; env : env }
 
-  and table = (comparable * any) list
+  and table = (any * any) list
 
   and env = any Env.t
 
@@ -79,29 +79,6 @@ module Make (Atom_cell : Utils.Types.P1) = struct
   and vlazy =
     | LLazy of lgen
     | LValue of any
-
-  and witness = { witness : any ; cod : comparable }
-
-  and comparable =
-    | CIntensional of any
-    | CLazy of cmp_lazy Utils.Cell.t
-    | CEmptyList
-    | CListCons of comparable * comparable
-    | CFun of { tfun : (typ t, fun_cod) Funtype.t
-              ; mapping : cmp_fun Utils.Cell.t }
-    | CRecord of comparable Record.t
-    | CVariant of comparable Variant.t
-    | CTuple of comparable * comparable
-    | CSingle
-
-  and cmp_lazy =
-    | LWaiting of vlazy Utils.Cell.t * typ t
-    | LComp of comparable
-
-  and cmp_fun =
-    | FWaiting of dat t
-    | FEmpty
-    | FMapping of { arg : any ; mapsto : comparable }
 
   module Env = Env.Make (struct type t = any end)
 
@@ -203,18 +180,18 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       contains_mu t1 || contains_mu t2
     | VTypeSingle Any v ->
       contains_mu v
-    | VWrapped { data ; tau } ->
-      contains_mu data || contains_mu (VTypeFun tau)
-    | VTypeFun { domain ; codomain = CodValue t }
-    | VGenFun { funtype = { domain ; codomain = CodValue t } ; table = _ } ->
+    | VWrapped { data ; funtype } ->
+      contains_mu data || contains_mu (VTypeFun funtype)
+    | VTypeFun { domain ; codomain = CodValue t ; mode = _ }
+    | VGenFun { funtype = { domain ; codomain = CodValue t ; mode = _ } ; table = _ } ->
       contains_mu domain || contains_mu t
     (* Closures cases: assume true, but may want to inspect closure *)
     | VFunClosure _
     | VFunFix _
     | VTypeModule _
     | VLazy _
-    | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ } ; table = _ }
-    | VTypeFun { domain = _ ; codomain = CodDependent _ } -> true
+    | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; mode = _ } ; table = _ }
+    | VTypeFun { domain = _ ; codomain = CodDependent _ ; mode = _ } -> true
     (* Refinement types: closure does not escape, so just look at type *)
     | VTypeRefine { tau ; _ } -> contains_mu tau
 
@@ -262,12 +239,14 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       "[]"
     | VListCons { hd ; tl } ->
       Printf.sprintf "(%s :: %s)" (any_to_string hd) (to_string tl)
-    | VGenFun { funtype ; table } ->
+    | VGenFun { funtype ; table = Some table } ->
       Printf.sprintf "G(%s, %d)" (to_string (VTypeFun funtype)) (Utils.Cell.id table)
+    | VGenFun { funtype ; table = None } ->
+      Printf.sprintf "G(%s)" (to_string (VTypeFun funtype))
     | VGenPoly { id ; nonce } ->
       Printf.sprintf "G(poly id : %d, nonce : %d)" id nonce
-    | VWrapped { data ; tau } ->
-      Printf.sprintf "W(%s, %s)" (to_string data) (to_string (VTypeFun tau))
+    | VWrapped { data ; funtype } ->
+      Printf.sprintf "W(%s, %s)" (to_string data) (to_string (VTypeFun funtype))
     | VLazy { cell = _ ; wrapping_types } ->
       List.fold_right (fun t acc ->
         Printf.sprintf "W(%s, %s)" acc (to_string t)
@@ -290,10 +269,14 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       Printf.sprintf "(mu %s. <body>)" (Ident.to_string var)
     | VTypeList t ->
       Printf.sprintf "(list %s)" (to_string t)
-    | VTypeFun { domain ; codomain } ->
+    | VTypeFun { domain ; codomain ; mode } ->
       begin match codomain with
-      | CodValue cod_tval -> Printf.sprintf "%s -> %s" (to_string domain) (to_string cod_tval)
-      | CodDependent (id, _closure) -> Printf.sprintf "(%s : %s) -> <codomain>" (Ident.to_string id) (to_string domain)
+      | CodValue cod_tval ->
+        Printf.sprintf "%s %s %s"
+          (to_string domain) (Funtype.mode_to_string mode) (to_string cod_tval)
+      | CodDependent (id, _closure) ->
+        Printf.sprintf "(%s : %s) %s <codomain>"
+          (Ident.to_string id) (Funtype.mode_to_string mode) (to_string domain)
       end
     | VTypeRecord map_body ->
       if Record.Label.Map.is_empty map_body then "{:}" else

@@ -1,0 +1,20 @@
+(* TEST
+  include refute;
+*)
+
+(*
+    Checking if
+      ((int -> int) -> int)
+    is a subtype of
+      (int ~> int) -> int
+    That is, checking if
+      (int -> int)
+    is a supertype of
+      (int ~> int)
+
+    So, are nondeterministic functions (int ~> int) subtypes
+    of deterministic functions (int -> int)?
+    No, so this is refuted.
+*)
+let check_sub (f : (int -> int) -> int) : (int ~> int) -> int =
+  f

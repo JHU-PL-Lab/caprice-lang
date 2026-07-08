@@ -44,10 +44,10 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
     is_symbolic t1 || is_symbolic t2
   | VTypeSingle Any v ->
     is_symbolic v
-  | VTypeFun { domain ; codomain = CodValue t }
-  | VGenFun { funtype = { domain ; codomain = CodValue t } ; table = _ } ->
+  | VTypeFun { domain ; codomain = CodValue t ; mode = _ }
+  | VGenFun { funtype = { domain ; codomain = CodValue t ; mode = _ } ; table = _ } ->
     is_symbolic domain || is_symbolic t
-  | VWrapped { data ; tau = { domain ; codomain = CodValue t } } ->
+  | VWrapped { data ; funtype = { domain ; codomain = CodValue t ; mode = _ } } ->
     is_symbolic data || is_symbolic domain || is_symbolic t
   (* Closures cases: assume true, but may want to inspect closure *)
   | VFunClosure _
@@ -56,9 +56,9 @@ let rec is_symbolic : type a. a t -> bool = fun v ->
   | VLazy _
   | VTypeMu _
   | VTypeRefine _
-  | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ } ; table = _ }
-  | VTypeFun { domain = _ ; codomain = CodDependent _ }
-  | VWrapped { data = _ ; tau = { domain = _ ; codomain = CodDependent _ } } ->
+  | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; mode = _ } ; table = _ }
+  | VTypeFun { domain = _ ; codomain = CodDependent _ ; mode = _ }
+  | VWrapped { data = _ ; funtype = { domain = _ ; codomain = CodDependent _ ; mode = _ } } ->
     true
 
 let is_any_symbolic (Any v) = is_symbolic v
@@ -145,9 +145,18 @@ let rec intensional_equal (x : any) (y : any) : Comparator.t =
   | Any VTuple (l1, r1), Any VTuple (l2, r2) ->
     let- () = intensional_equal l1 l2 in
     intensional_equal r1 r2
-  | Any VGenFun { funtype = _ ; table = t1 }
-  , Any VGenFun { funtype = _ ; table = t2 } ->
-    make (Utils.Cell.equal t1 t2)
+  | Any VGenFun { funtype = f1 ; table = t1 }
+  , Any VGenFun { funtype = f2 ; table = t2 } ->
+    begin match t1, t2 with
+    | Some tbl1, Some tbl2 -> make (Utils.Cell.equal tbl1 tbl2)
+    | _ ->
+      (* Resort to physical equality when no table because two different
+        generated functions may have the same type. Physical equality tells
+        different generated functions apart. This is incomplete because it is
+        possible that the type of the function only admits one possible function
+        (e.g. identity), but we still tell them apart. *)
+      make (f1 == f2)
+    end
   | Any VTypeSingle v1, Any VTypeSingle v2 ->
     intensional_equal v1 v2
   | Any VTypeList t1, Any VTypeList t2 ->
@@ -159,17 +168,17 @@ let rec intensional_equal (x : any) (y : any) : Comparator.t =
     iequal_ftype tf1 tf2
   | Any VRecord m1, Any VRecord m2
   | Any VModule m1, Any VModule m2 ->
-    fold_lists (fun (l1, v1) (l2, v2) ->
+    reduce_lists (fun (l1, v1) (l2, v2) ->
       let= () = Record.Label.equal l1 l2 in
       intensional_equal v1 v2
     ) (Record.Label.Map.to_list m1) (Record.Label.Map.to_list m2)
   | Any VTypeRecord m1, Any VTypeRecord m2 ->
-    fold_lists (fun (l1, v1) (l2, v2) ->
+    reduce_lists (fun (l1, v1) (l2, v2) ->
       let= () = Record.Label.equal l1 l2 in
       iequal v1 v2
     ) (Record.Label.Map.to_list m1) (Record.Label.Map.to_list m2)
   | Any VTypeVariant m1, Any VTypeVariant m2 ->
-    fold_lists (fun (l1, v1) (l2, v2) ->
+    reduce_lists (fun (l1, v1) (l2, v2) ->
       let= () = Variant.Label.equal l1 l2 in
       iequal v1 v2
     ) (Variant.Label.Map.to_list m1) (Variant.Label.Map.to_list m2)
@@ -199,9 +208,9 @@ let rec intensional_equal (x : any) (y : any) : Comparator.t =
     iequal_closure [ c1.var, c2.var ] c1.closure c2.closure
   | Any VWrapped w1, Any VWrapped w2 ->
     let- () = intensional_equal (Any w1.data) (Any w2.data) in
-    iequal_ftype w1.tau w2.tau
+    iequal_ftype w1.funtype w2.funtype
   | Any VLazy s1, Any VLazy s2 when s1.cell == s2.cell ->
-    fold_lists iequal s1.wrapping_types s2.wrapping_types
+    reduce_lists iequal s1.wrapping_types s2.wrapping_types
   | Any VLazy _, _ | _, Any VLazy _ ->
     (* For now, say false if comparing lazy values. It may be more safe to say shape mismatch. *)
     make false
@@ -216,6 +225,7 @@ and iequal : type a. a t -> a t -> Comparator.t = fun x y ->
 and iequal_ftype (tf1 : (typ t, fun_cod) Funtype.t)
   (tf2 : (typ t, fun_cod) Funtype.t) : Comparator.t =
   let open Comparator in
+  let= () = Funtype.equal_mode tf1.mode tf2.mode in
   let- () = iequal tf1.domain tf2.domain in
   iequal_cod tf1.codomain tf2.codomain
 
@@ -265,6 +275,7 @@ and iequal_closure bindings closure1 closure2 =
     (* trivially equal *)
     | Ast.EUnit, Ast.EUnit
     | EEmptyList, EEmptyList
+    | EPick_i, EPick_i
     | EAbstractType, EAbstractType
     | EType, EType
     | ETypeInt, ETypeInt
@@ -303,7 +314,7 @@ and iequal_closure bindings closure1 closure2 =
       ieq r1.record r2.record
     | ERecord m1, ERecord m2
     | ETypeRecord m1, ETypeRecord m2 ->
-      fold_lists (fun (l1, e1) (l2, e2) ->
+      reduce_lists (fun (l1, e1) (l2, e2) ->
         let= () = Record.Label.equal l1 l2 in
         ieq e1 e2
       ) (Record.Label.Map.to_list m1) (Record.Label.Map.to_list m2)
@@ -315,7 +326,7 @@ and iequal_closure bindings closure1 closure2 =
       let= () = Variant.Label.equal r1.label r2.label in
       ieq r1.payload r2.payload
     | ETypeVariant l1, ETypeVariant l2 ->
-      fold_lists (fun r1 r2 ->
+      reduce_lists (fun r1 r2 ->
         let= () = Variant.Label.equal r1.Variant.label r2.label in
         ieq r1.payload r2.payload
       ) l1 l2
@@ -367,7 +378,7 @@ and iequal_closure bindings closure1 closure2 =
       end
     | EMatch r1, EMatch r2 ->
       let- () = ieq r1.subject r2.subject in
-      fold_lists (fun (pat1, body1) (pat2, body2) ->
+      reduce_lists (fun (pat1, body1) (pat2, body2) ->
         match check_pattern pat1 pat2 with
         | Some bindings' ->
           iequal_expr (bindings' @ bindings) body1 body2
