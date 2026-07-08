@@ -1392,4 +1392,4 @@ let eval
 
   let result, state = run (eval_statement_list pgm) target in
   let answer = Eval_result.to_answer result in
-  { target ; rev_stem = state.rev_stem ; answer } :: state.runs
+  { target ; stem = state.stem ; answer } :: state.runs

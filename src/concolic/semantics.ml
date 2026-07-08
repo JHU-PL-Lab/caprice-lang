@@ -6,14 +6,14 @@ exception InvariantException of string
 
 module State = struct
   type t =
-    { rev_stem : Rev_stem.t (* we will cons to the path instead of union a log *)
+    { stem : Stem.t (* we will cons to the path instead of union a log *)
     ; logged_inputs : Input_env.t
     ; runs : Logged_run.t list
     ; cells : Utils.Cell.Map.t
     }
 
   let empty : t =
-    { rev_stem = Rev_stem.empty
+    { stem = Stem.empty
     ; logged_inputs = Input_env.empty
     ; runs = []
     ; cells = Utils.Cell.Map.empty
@@ -74,20 +74,31 @@ let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
   [push_tag_to_path ?alternatives tag] pushes [tag] onto the path stem, and records
     the [alternatives] as the other inputs possible so that a target can be made
     from them.
+
+  Because the state only tracks a stem instead of a full path, this only pushes
+  to that stem if the step exceeds the target step.
+
+    TODO: when we fork, the target has the current step, so if the forked
+      computation immediately pushes, then this skips because the step is equal
+      to the target step. This seems like a problem, but we also get a loop if
+      we skip when strictly smaller step because of how targets are created
+      elsewhere. This needs to be fixed.
 *)
 let push_tag_to_path ~(alternatives : Tag.t list) (tag : Tag.t) : (unit, 'env) m =
   let* step = step in
   let* { Context.target ; _ } = read_ctx in
-  modify (fun (s : State.t) ->
-    let path_item =
-      Path_item.Tag { tag ; alternatives ; key =
-        Stepkey step ; logged_inputs = s.logged_inputs }
-    in
-    let rev_stem =
-      Rev_stem.cons path_item s.rev_stem ~if_exceeds:(Target.priority target)
-    in
-    { s with rev_stem }
-  )
+  if Step.compare step (Target.step target) <= 0 then
+    return ()
+  else
+    (* has reached the target, so we need to build the stem *)
+    modify (fun (s : State.t) ->
+      let kind = Path_item.Tag { tag ; alternatives } in
+      let path_item =
+        { Path_item.when_ = step ; logged_inputs = s.logged_inputs ; kind }
+      in
+      let stem = Stem.cons path_item s.stem in
+      { s with stem }
+    )
 
 (**
   [log_input kind a] logs the input [a] with kind [kind] to have been
@@ -122,18 +133,24 @@ let push_formula_to_path ?(allow_flip : bool = true)
     return ()
   else
     let* { Context.target ; _ } = read_ctx in
-    modify (fun (s : State.t) ->
-      let path_item =
-        if allow_flip then
-          Path_item.Formula { cond = formula ; logged_inputs = s.logged_inputs }
-        else
-          Nonflipping formula
-      in
-      let rev_stem =
-        Rev_stem.cons path_item s.rev_stem ~if_exceeds:(Target.priority target)
-      in
-      { s with rev_stem }
-    )
+    let* step in
+    if Step.compare step (Target.step target) <= 0 then
+      return ()
+    else
+      (* has reached the target, so we need to build the stem *)
+      modify (fun (s : State.t) ->
+        let kind =
+          if allow_flip then
+            Path_item.Formula formula
+          else
+            Nonflipping formula
+        in
+        let path_item =
+          { Path_item.when_ = step ; kind ; logged_inputs = s.logged_inputs }
+        in
+        let stem = Stem.cons path_item s.stem in
+        { s with stem }
+      )
 
 (**
   [read_input kind input_env] is an optional input from [input_env] with the
@@ -158,9 +175,10 @@ let read_and_log_input (kind : 'a Input.Kind.t) (input_env : Input_env.t)
   return input
 
 (**
-  [target_to_here] is a target representing the path to the current
-    program point. It is trivial to solve because its solution is
-    the logged input environment.
+  [target_to_here] is a target representing the path to the current program
+    point. It is trivial to solve because its solution is the logged input
+    environment. The step of the target is the current step, so any computation
+    using this target as its context will begin _at_ the target, not after it.
 
   The implementation is hand-rolled because of the value restriction.
 
@@ -169,16 +187,18 @@ let read_and_log_input (kind : 'a Input.Kind.t) (input_env : Input_env.t)
 *)
 let target_to_here : 'env. (Target.t, 'env) m =
   { run = fun ~reject:_ ~accept state step _ { target ; _ } ->
-    assert (
-      let n = state.rev_stem.total_priority in
-      let n' = Target.priority target in
-      Path_priority.geq n n'
-    );
+    assert (Step.compare step (Target.step target) > 0);
+    let path_priority =
+      Path_priority.plus
+        (Target.priority target)
+        (Stem.priority state.stem)
+    in
     accept (
       Target.make Formula.trivial
-        (Formula.BSet.union target.all_formulas (Path.formulas state.rev_stem.rev_stem))
+        (Formula.BSet.union target.all_formulas (Stem.formulas state.stem))
         state.logged_inputs
-        ~path_priority:state.rev_stem.total_priority
+        ~path_priority
+        ~when_:step
     ) state step
   }
 
@@ -194,15 +214,11 @@ let target_to_here : 'env. (Target.t, 'env) m =
 let fork (forked_m : 'a. ('a, 'env) m) : (unit, 'env) m =
   let* target = target_to_here in
   fork forked_m { target }
-    ~setup_state:
-      (fun state ->
-        (* keeps all the logged runs *)
-        { state with rev_stem = Rev_stem.discard_stem state.rev_stem }
-      )
+    ~setup_state:(fun state -> { state with stem = Stem.empty })
     ~restore_state:
       (fun e ~og ~forked_state ->
         let forked_run =
-          { Logged_run.rev_stem = forked_state.rev_stem
+          { Logged_run.stem = forked_state.stem
           ; target
           ; answer = Eval_result.to_answer e }
         in

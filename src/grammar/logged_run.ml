@@ -1,5 +1,5 @@
 
 type t =
-  { rev_stem : Rev_stem.t
+  { stem : Stem.t
   ; target : Target.t
   ; answer : Answer.t }

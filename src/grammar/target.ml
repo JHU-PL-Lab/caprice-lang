@@ -4,6 +4,7 @@ type t =
   ; all_formulas : Formula.BSet.t
   ; i_env : Input_env.t
   ; id : Utils.Uid.t
+  ; when_ : Step.t
   ; priority : Path_priority.t }
 
 let empty : t =
@@ -11,6 +12,7 @@ let empty : t =
   ; all_formulas = Formula.BSet.empty
   ; i_env = Input_env.empty
   ; id = Utils.Uid.make_new ()
+  ; when_ = Step.zero
   ; priority = Path_priority.zero }
 
 (**
@@ -31,9 +33,12 @@ let empty : t =
     any other target made in this way), which is the sole basis of equality
     and comparison. Therefore, no two targets that represent the same
     program path should be made, or else they will be unequal.
+
+    The target has been reached at [when_] steps.
 *)
 let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t)
-  (i_env : Input_env.t) ~(path_priority : Path_priority.t) : t =
+  (i_env : Input_env.t) ~(path_priority : Path_priority.t)
+  ~(when_ : Step.t) : t =
   { target_formula =
     if Formula.is_const last_formula
     then last_formula
@@ -41,6 +46,7 @@ let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t)
   ; all_formulas = Formula.BSet.add last_formula other_formulas
   ; i_env
   ; id = Utils.Uid.make_new ()
+  ; when_
   ; priority = path_priority }
 
 let compare a b =
@@ -51,3 +57,6 @@ let equal a b =
 
 let priority ({ priority ; _ } : t) : Path_priority.t =
   priority
+
+let step ({ when_ ; _ } : t) : Step.t =
+  when_

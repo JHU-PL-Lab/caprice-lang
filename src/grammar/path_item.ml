@@ -1,24 +1,14 @@
 
-type t =
-  | Formula of { cond : bool Formula.t ; logged_inputs : Input_env.t }
-  | Nonflipping of bool Formula.t
-  | Tag of { tag : Tag.t ; alternatives : Tag.t list ;
-    key : Stepkey.t ; logged_inputs : Input_env.t }
 
-(*
-  Nonflipping formulas must count for the priority because priority is
-  used for path length, and since a formula is flipped according to its
-  concrete value, not according to its position in the path tree, the
-  path length / priority would vary depending on values. We need path
-  length to be the same no matter which direction was taken along a
-  branch. This is mainly because the path length of a target should be
-  computed from the path, and that path does not know whether the formula
-  would be flipped had it taken a different direction.
-  We could fix this by noting whether the other direction would be flipped,
-  but this current behavior (of saying all formulas count to path length) is
-  easiest.
-*)
-let to_priority (u : t) : Path_priority.t =
-  match u with
-  | Formula _ | Nonflipping _ -> Path_priority.one
+type kind =
+  | Formula of bool Formula.t
+  | Nonflipping of bool Formula.t
+  | Tag of { tag : Tag.t ; alternatives : Tag.t list }
+
+type t = { when_ : Step.t ; kind : kind ; logged_inputs : Input_env.t }
+
+let to_priority (t : t) : Path_priority.t =
+  match t.kind with
+  | Formula _ -> Path_priority.one
+  | Nonflipping _ -> Path_priority.zero
   | Tag { tag ; _ } -> Tag.priority tag
