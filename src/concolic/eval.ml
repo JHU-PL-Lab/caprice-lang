@@ -560,13 +560,12 @@ let eval
       | Any VRecord record_v ->
         let t_labels = Record.label_set record_t in
         let v_labels = Record.label_set record_v in
-          let push_and_check label =
-            let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
+          let check_label label =
             check
               (Record.Label.Map.find label record_v)
               (Record.Label.Map.find label record_t)
           in
-          check_struct push_and_check ~refute ~t_labels ~v_labels
+          check_struct check_label ~refute ~t_labels ~v_labels
       | _ -> refute
       end
     | VTypeModule { captured ; env } ->
@@ -576,8 +575,7 @@ let eval
         let t_labels_ls = List.map fst captured in
         let t_labels = Record.Label.Set.of_list t_labels_ls in
         let v_labels = Record.label_set module_v in
-        let push_and_check label =
-          let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
+        let check_label label =
           let new_env, tau =
             (* think about sharing this computation because rn it is redone on every fork *)
             Utils.List_utils.fold_left_until (fun env (label', tau) ->
@@ -591,7 +589,7 @@ let eval
           let* t = local' new_env (eval_type tau) in
           check (Record.Label.Map.find label module_v) t
         in
-        check_struct push_and_check ~refute ~t_labels ~v_labels
+        check_struct check_label ~refute ~t_labels ~v_labels
       | _ -> refute
       end
     | VTypeMu { var ; closure = ({ captured ; env } as closure) } -> (* don't force v *)
@@ -699,6 +697,8 @@ let eval
 
   (*
     Check modules and records given a way to check each label and a default label.
+    The argument function must not push the tag to the path or log the input;
+    that is handled here. It must only check the label.
   *)
   and check_struct
     : type a env. ('any. Record.Label.t -> ('any, env) m) -> refute:(a, env) m ->
@@ -708,15 +708,19 @@ let eval
         (* incr step because about to read an input *)
         let* () = incr_step ~max_step in
         let* l_opt = read_input KTag input_env in
+        let push_and_check label =
+          let* () = push_and_log_tag (Grammar.Tag.of_record_label Check label) in
+          check_label label
+        in
         match l_opt with
-        | Some Label (id, Check) -> (check_label (Record.Label.RecordLabel id))
+        | Some Label (id, Check) -> push_and_check (Record.Label.RecordLabel id)
         | Some _ -> raise bad_input_env
         | None ->
           (* is in exploration mode, so we want to check every label *)
           let rec go enum =
             match Record.Label.Set.Enum.head_opt enum with
             | Some label ->
-              let* () = fork (check_label label) in
+              let* () = fork (push_and_check label) in
               go (Record.Label.Set.Enum.tail enum)
             | None -> escape Eval_result.Confirmation
           in
