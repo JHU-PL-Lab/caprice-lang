@@ -353,7 +353,7 @@ let eval
         | [] ->
           let* cod_tval = eval_codomain codomain v_arg in
           let* genned = allow_inputs (gen cod_tval) in
-          let* () = set_cell cell (mappings @ [(v_arg, genned)]) in (* TODO: can be cons, I think *)
+          let* () = set_cell cell ((v_arg, genned) :: mappings) in
           return genned
         | (input, output) :: tl ->
           let (b, s) = intensional_equal input v_arg in
