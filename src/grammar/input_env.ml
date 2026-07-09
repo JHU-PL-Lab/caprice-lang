@@ -19,13 +19,16 @@ module Make (K : Smt.Symbol.KEY) = struct
   let extend = Utils.Uid.Map.extend
 
   let to_string (m : t) : string =
-    "{ " ^
-      ( Utils.Uid.Map.to_list m
-      |> List.map (fun (uid, input) ->
-        string_of_int (Utils.Uid.to_int uid) ^ " |-> " ^ Input.to_string input
-        )
-      |> String.concat " ; ")
-    ^ "}"
+    let make_mapping (uid, input) =
+      Printf.sprintf "%d |-> %s" (Utils.Uid.to_int uid) (Input.to_string input)
+    in
+    let body =
+      m
+      |> Utils.Uid.Map.to_list
+      |> List.map make_mapping
+      |> String.concat " ; "
+    in
+    Printf.sprintf "{ %s }" body
 
   let of_model (model : K.t Smt.Model.t) : t =
     List.fold_left (fun acc uid ->
