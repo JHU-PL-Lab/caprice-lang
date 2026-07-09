@@ -2,8 +2,7 @@
   include refute;
 *)
 
-let _ : ((int -> int) -> int) -> unit =
-  fun f ->
-    let a = fun x -> x + 1 in
-    let b = fun x -> 1 + x in
-    assert (f a == f b) (* ERROR: x + 1 is intensionally different from 1 + x *)
+let test (f : (int -> int) -> int) : unit =
+  let a = fun x -> x + 1 in
+  let b = fun x -> 1 + x in
+  assert (f a == f b) (* ERROR: x + 1 is intensionally different from 1 + x *)

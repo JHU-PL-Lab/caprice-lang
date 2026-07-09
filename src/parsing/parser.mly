@@ -58,19 +58,25 @@ statement:
     { SLet { name = fst b ; annot = snd b ; defn } }
   | LET name=l_ident params=l_ident+ EQUALS body=expr
     { SLet { name ; annot = ANone ; defn = mk_curried_fun params body } }
-  | LET name=l_ident tparams=typed_params COLON body_type=expr EQUALS body=expr
-    { SLet { name ; annot = AType { tau = (mk_curried_funtype tparams body_type default_mode) ; do_check = true }
+  | LET name=l_ident tparams=typed_params mode=returns body_type=expr EQUALS body=expr
+    { SLet { name ; annot = AType { tau = (mk_curried_funtype tparams body_type mode) ; do_check = true }
       ; defn = mk_curried_fun (extract_param_names tparams) body } }
   | LET REC name=l_ident param=l_ident params=l_ident* EQUALS body=expr
     { SLetRec { name ; annot = ANone ; param ; defn = mk_curried_fun params body } }
-  | LET REC name=l_ident tparams=typed_params COLON body_type=expr EQUALS body=expr
+  | LET REC name=l_ident tparams=typed_params mode=returns body_type=expr EQUALS body=expr
     { SLetRec { name
-      ; annot = AType { tau = (mk_curried_funtype tparams body_type default_mode) ; do_check = true }
+      ; annot = AType { tau = (mk_curried_funtype tparams body_type mode) ; do_check = true }
       ; param = fst (List.hd tparams)
       ; defn = mk_curried_fun (List.tl (extract_param_names tparams)) body } }
   | LET REC b=binding EQUALS FUNCTION param=l_ident params=l_ident* ARROW body=expr
     { SLetRec { name = fst b ; annot = snd b ; param ; defn = mk_curried_fun params body } }
   ;
+
+%inline returns:
+  | mode=arrow
+    { mode }
+  | COLON
+    { default_mode }
 
 statement_with_pos:
   | s=statement

@@ -813,9 +813,11 @@ let eval
       in
       return_any (VGenFun { funtype ; table })
     | VType ->
+      let* () = assert_inputs_allowed in
       let* Step id = step in (* will use step for a fresh integer *)
       return_any (VTypePoly { id })
     | VTypePoly { id } ->
+      let* () = assert_inputs_allowed in
       let* Step nonce = step in (* will use step for a fresh nonce *)
       return_any (VGenPoly { id ; nonce })
     | VTypeTop ->

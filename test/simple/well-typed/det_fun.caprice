@@ -49,22 +49,19 @@ let _ =
   in
   f
 
-let _ : (bool -> int) ~> bool ~> unit =
-  fun f b ->
-    let ft = f true in
-    if b then
-      assert (f true == f b)
-    else
-      ()
+let apply_alias (f : bool -> int) (b : bool) ~> unit =
+  let ft = f true in
+  if b then
+    assert (f true == f b)
+  else
+    ()
 
-let _ : (singleton type -> int) ~> singleton type ~> singleton type ~> int =
-  fun f a b ->
-    if f a == f b
-    then 0
-    else false
+let apply_singleton (f : singleton type -> int) (a : singleton type) (b : singleton type) ~> int =
+  if f a == f b
+  then 0
+  else false
 
-let _ : ((int ~> int) -> int) ~> (int ~> int) ~> (int ~> int) ~> int =
-  fun f g h ->
-    if f g == f g
-    then 0
-    else true
+let same_genfun (f : (int ~> int) -> int) (g : int ~> int) (h : int ~> int) ~> int =
+  if f g == f g
+  then 0
+  else true

@@ -17,13 +17,14 @@ end
 
 let a = abstract
 
-let F (X : a) : sig val t : type end =
+(* F is nondeterministic because abstract is generated *)
+let F (X : a) ~> sig val t : type end =
   struct let t = abstract end
 
 let M = struct
   let a = a (* fix the error by aliasing a *)
 
-  let G (P : sig val X : a end) : sig end = struct
+  let G (P : sig val X : a end) ~> sig end = struct
     let X = P.X (* we don't have "open", so we must hand-write all from P *)
     let U = F (X)
   end

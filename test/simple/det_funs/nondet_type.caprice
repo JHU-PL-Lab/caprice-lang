@@ -1,0 +1,6 @@
+(* TEST
+  include refute;
+*)
+
+let test (f : type ~> type) : type -> type =
+  f

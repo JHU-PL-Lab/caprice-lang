@@ -1,0 +1,9 @@
+(* TEST
+  include refute;
+*)
+
+let test (dep f : type -> type) (x : f int) : f int =
+  x
+
+(* ERROR: abstract is a new type, so this is nondeterministic *)
+let _ = test (fun _ -> abstract)

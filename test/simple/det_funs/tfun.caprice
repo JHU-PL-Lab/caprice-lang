@@ -1,0 +1,6 @@
+(* TEST
+  include exhaust;
+*)
+
+let test (dep f : type -> type) (x : f int) : f int =
+  x

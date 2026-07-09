@@ -28,6 +28,10 @@ let _ : (int -> int -> int) ~> int =
   fun f ->
     f 0 0
 
+(* the above but in function sugar *)
+let nameless (f : int -> int -> int) ~> int =
+  f 0 0
+
 let _ : (int -> int -> int) ~> int ~> int ~> int =
   fun f a b ->
     f a b

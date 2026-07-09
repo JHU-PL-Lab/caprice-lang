@@ -10,8 +10,7 @@ let rec map
   | hd :: tl -> f hd :: map a b f tl
   end
 
-let _ : ((list int -> list bool) -> bool) ~> int =
-  fun f ->
-    if f (map int bool (fun i -> i % 2 == 0)) == f (map int bool (fun i -> i % 2 == 0))
-    then 0
-    else false
+let test (f : (list int -> list bool) -> bool) ~> int =
+  if f (map int bool (fun i -> i % 2 == 0)) == f (map int bool (fun i -> i % 2 == 0))
+  then 0
+  else false

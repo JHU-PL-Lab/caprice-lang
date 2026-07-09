@@ -17,13 +17,13 @@ end
 
 let a = abstract
 
-let F (X : a) : sig val t : type end =
+let F (X : a) ~> sig val t : type end =
   struct let t = abstract end
 
 let M = struct
   let a = abstract
 
-  let G (P : sig val X : a end) : sig end = struct
+  let G (P : sig val X : a end) ~> sig end = struct
     let X = P.X (* we don't have "open", so we must hand-write all from P *)
     let U = F (X) (* ERROR: this a is allowed to be anything, but above it was fixed *)
   end
