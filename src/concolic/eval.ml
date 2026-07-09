@@ -117,7 +117,7 @@ let eval
         | (pat, body) :: tl ->
           let* res = Matches.match_any pat v ~resolve_lazy in
           begin match res with
-          | Match env' -> local (fun env -> Env.extend env env') (eval body)
+          | Match env' -> local (fun env -> Env.extend env ~with_:env') (eval body)
           | No_match -> find_match tl
           | Failure msg -> escape (Mismatch msg)
           end

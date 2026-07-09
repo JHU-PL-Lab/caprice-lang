@@ -13,4 +13,4 @@ include T
 
 let to_string (Ident s) = s
 
-module Map = Baby.W.Map.Make (T)
+include Utils.Set_map.Make_W (T)

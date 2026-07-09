@@ -4,9 +4,7 @@ module T = struct
 
   let empty = Ident.Map.empty
 
-  let extend base_env extending_env =
-    Ident.Map.union (fun _ _ v -> Some v)
-      base_env extending_env
+  let extend = Ident.Map.extend
 
   let singleton = Ident.Map.singleton
 
@@ -21,7 +19,7 @@ module type S = sig
   type value
   type t
   val empty : t
-  val extend : t -> t -> t
+  val extend : t -> with_:t -> t
   val singleton : Ident.t -> value -> t
   val find : Ident.t -> t -> value option
   val set : Ident.t -> value -> t -> t

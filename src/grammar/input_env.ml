@@ -16,9 +16,7 @@ module Make (K : Smt.Symbol.KEY) = struct
       | KTag -> ITag input
     ) m
 
-  let extend (base_map : t) (extending_map : t) : t =
-    Utils.Uid.Map.union (fun _ _ v -> Some v)
-      base_map extending_map
+  let extend = Utils.Uid.Map.extend
 
   let to_string (m : t) : string =
     "{ " ^

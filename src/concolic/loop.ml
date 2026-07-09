@@ -87,7 +87,7 @@ module Make (Y : sig val yield : unit -> unit end) = struct
           else
             (fun () -> Random.int_in_range ~min:(-10) ~max:10), Random.bool
         in
-        let ienv = Input_env.extend target.i_env (Input_env.of_model model) in
+        let ienv = Input_env.extend target.i_env ~with_:(Input_env.of_model model) in
         let runs = eval ienv target ~default_int ~default_bool in
         match collect_logged_runs runs ~max_tree_depth:options.max_tree_depth with
         | `Quit answer ->

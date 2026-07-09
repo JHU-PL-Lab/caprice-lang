@@ -483,7 +483,7 @@ module Make (Atom_cell : Utils.Types.P1) = struct
         let open Match_result in
         bind_res (matches p1 v1) (fun env ->
           bind_res (matches p2 v2) (fun env' ->
-            return @@ Match (Env.extend env env')
+            return @@ Match (Env.extend env ~with_:env')
           )
         )
       in
