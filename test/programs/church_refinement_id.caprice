@@ -1,0 +1,71 @@
+(* TEST
+  include refute; # incompleteness -- higher kinded polymorphism
+*)
+
+let refine t pred =
+  (type r) -> ((x : t) -> (if pred x then unit else bottom) -> r) -> r
+
+let any_int = refine int (fun _ -> true)
+
+let single_int n =
+  refine int (fun y -> n bool (fun x _ -> x == y))
+
+(*
+  We generate an n, which is a function that takes a type and returns a function.
+  single_int calls n with bool, but when we check, we call it with a polymorphic r.
+
+  We do some partial evaluation below this to really show what happens.
+*)
+let id (dep n : any_int) : single_int n = n
+
+(* Spell it out *)
+let id (dep n : (type r) -> ((x : int) -> (if true then unit else bottom) -> r) -> r) :
+  (type r) -> ((y : int) -> (
+    let b =
+      n bool (fun x _ ->
+        x == y
+      )
+    in
+    if b then unit else bottom
+  ) -> r) -> r =
+  n
+
+(* peval `if true` and use more sugar for function def *)
+let id (dep n : (type r) -> ((x : int) -> unit -> r) -> r) (type r)
+  (g : (y : int) -> (
+    let b = n bool (fun x _ -> x == y) in
+    if b then unit else bottom
+  ) -> r) : r =
+  n r g
+
+(* replace r with int to be more concrete and remove witness *)
+let id (dep n : (type r) -> (int -> r) -> r)
+  (k : (y : int) ->
+    let b = n bool (fun x -> x == y) in
+    if b then int else unit
+  ) : int =
+  n int k
+
+(* remove dependent y because it doesn't matter *)
+let id (dep n : (type r) -> (int -> r) -> r)
+  (k : int ->
+    let b = n bool (fun _ -> true) in
+    if b then int else unit
+  ) : int =
+  n int k
+
+(* remove int argument entirely *)
+let id (dep n : (type r) -> r -> r)
+  (k :
+    let b = n bool true in (* n bool true is not necessarily true *)
+    if b then int else unit
+  ) : int =
+  n int k
+
+(*
+  So we see that the true we pass to n actually does not at all dictate the
+  value of b. This is the classic example of incompleteness in this system here:
+*)
+
+let incomplete (must_be_id : (type a) -> a -> a) : singleton 0 =
+  must_be_id int 0

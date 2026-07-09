@@ -1,0 +1,46 @@
+(* TEST
+  include refute; # incomplete due to higher kinded polymorphism.
+*)
+
+let refine t pred = (type r) -> ((x : t) -> (if pred x then unit else bottom) -> r) -> r
+
+(* positive integers *)
+let pos = refine int (fun x -> x > 0)
+
+(* take a positive integer and return a positive integer *)
+let add_one (m : pos) : pos =
+  (* works on all results r *)
+  fun r k -> (* take a continuation k that, when given a positive integer and witness (), will return an r *)
+    (* grab the underlying positive x inside m *)
+    m r (fun x _ ->
+      (* and continue after adding 1 to it *)
+      k (x + 1) ()
+    )
+
+let return x = fun _ f -> f x ()
+
+let rec mult (dep x : int) (dep y : int)
+  : refine int (fun i -> i == x * y) =
+  fun r k ->
+    if x == 1 then
+      k y ()
+    else
+      mult (x - 1) y r (fun z _ ->
+        k (z + y) ()
+      )
+
+(* ERROR: incompleteness where higher kinded polymorphism is not truly parametric.
+
+  This fails for the same reason as church_refinement_id.caprice, which breaks down
+  the problem.
+*)
+let double (dep n : refine int (fun n -> n > 0))
+  : refine int (fun m ->
+    n bool (fun n _ -> m > n)
+  ) =
+  fun r k ->
+    n r (fun x _ ->
+      mult x 2 r (fun result _ ->
+        k result ()
+      )
+    )
