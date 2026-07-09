@@ -280,6 +280,7 @@ module Set = struct
       We do not yet do this, though.
     *)
     let scc (formula : (bool, K.t) T.t) ~(wrt : t) : (bool, K.t) T.t =
+      if is_const formula then formula else (* easy short circuit *)
       let formula_symbols = symbols formula in
       let all_with_symbols =
         list_map (fun e -> (e, symbols e)) wrt

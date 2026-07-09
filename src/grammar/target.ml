@@ -36,15 +36,10 @@ let empty : t =
 *)
 let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t)
   (i_env : Input_env.t) ~(priority : Priority.t) ~(when_ : Step.t) : t =
-  { target_formula =
-    if Formula.is_const last_formula
-    then last_formula
-    else Formula.BSet.scc last_formula ~wrt:other_formulas
-  ; all_formulas = Formula.BSet.add last_formula other_formulas
-  ; i_env
-  ; id = Utils.Uid.make_new ()
-  ; when_
-  ; priority }
+  let target_formula = Formula.BSet.scc last_formula ~wrt:other_formulas in
+  let all_formulas = Formula.BSet.add last_formula other_formulas in
+  let id = Utils.Uid.make_new () in
+  { target_formula ; all_formulas ; i_env ; id ; when_ ; priority }
 
 let compare a b =
   Utils.Uid.compare a.id b.id
