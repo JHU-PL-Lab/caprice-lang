@@ -1,0 +1,23 @@
+(* TEST
+  include diverges;
+*)
+
+(* When splaying, we splay out map when mk_map is called, so different
+  calls to this return different functions. Thus splaying combined with
+  intensional equality is incomplete when this is used below. *)
+let mk_map = fun _ ->
+  let rec map
+    : (type a) -> (type b) -> (a -> b) -> list a -> list b
+    = fun a b f ls ->
+    match ls with
+    | [] -> []
+    | hd :: tl -> f hd :: map a b f tl
+    end
+  in
+  map
+
+let _ : (((type a b) -> (a -> b) -> list a -> list b) -> int) -> int =
+  fun f ->
+    if f (mk_map ()) == f (mk_map ()) (* each mk_map () is different when splaying *)
+    then 0
+    else false
