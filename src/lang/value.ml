@@ -83,6 +83,7 @@ module Make (Atom_cell : Utils.Types.P1) = struct
   and witness = { witness : any ; cod : comparable }
 
   and comparable =
+    | CBottom (* represents vanishing *)
     | CIntensional of any
     | CLazy of cmp_lazy Utils.Cell.t
     | CEmptyList

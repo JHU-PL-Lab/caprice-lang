@@ -1,0 +1,65 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  Original code:
+
+(define (derived-guarded-first-order-two-calls f)
+  (cond
+    [(= (+ (f (λ (n) 4))
+          (f (λ (y) ( * y 2))))
+        10)
+    (when (< (f (λ (n) 4))
+              (f (λ (y) ( * y 2))))
+      (f (λ (w)
+            (when (= w 2) (error-bug "REAL"))
+            0)))]
+    [else 0]))
+
+(define derived-guarded-first-order-two-calls:ce
+  (list
+  (λ (g)
+    (define n (g 3))
+    (cond
+      [(= n 4) 4]
+      [(= n 6) 6]
+      [else
+        (g 2)]))))
+
+(define-concolic-test prop-derived-guarded-first-order-two-calls
+  #:inputs
+  [F (->s (->s integer integer) integer)]
+  #:prop
+  (prop-not-error-bug
+  (λ () (derived-guarded-first-order-two-calls F))))
+*)
+
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f must make sum = 10: (f (λn.4)) + (f (λy.y*2)) = 10
+    e.g. return 4 and then 6 each time.
+  - f must make (f (λn.4)) < (f (λy.y*2))
+  - f can distinguish the arguments by calling with 3:
+      (λn.4) returns 4
+      (λy.y*2) returns 6
+  - Then call f with a function that must be called with 2 to error.
+*)
+let derived_guarded_first_order_two_calls (f : (int -> int) -> int) : int =
+  let sum = f (fun n -> 4) + f (fun y -> y * 2) in
+  if sum == 10 then
+    if f (fun n -> 4) < f (fun y -> y * 2) then
+      f (fun w -> if w == 2 then error () (* BUG *) else 0)
+    else
+      0
+  else
+    0
+
+(* Counterexample to the above *)
+let derived_guarded_first_order_two_calls_ce g =
+  let n = g 3 in
+  if n == 4 then 4
+  else if n == 6 then 6
+  else g 2

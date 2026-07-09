@@ -1,0 +1,137 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  Original code:
+
+(define (Omega) (Omega))
+
+(define (reverse-args f)
+  (define n1 ((f (λ (n) (if (= n 0) 10 (Omega)))) 0))
+  (define n2 ((f (λ (n) (if (= n 0) 23 (Omega)))) 0))
+  (define n3 ((f (λ (m) (if (= m 1) 37 (Omega)))) 1))
+  (define n4 ((f (λ (m) (if (= m 1) 41 (Omega)))) 1))
+  (when (and (= n1 12)
+             (= n2 34)
+             (= n3 56)
+             (= n4 78))
+    (error-bug "REAL")))
+
+(define reverse-args:ce
+  (list
+   (λ (f)
+     (λ (x)
+       (define k (f x))
+       (cond
+         [(= k 10) 12]
+         [(= k 23) 34]
+         [(= k 37) 56]
+         [(= k 41) 78]
+         [else 0])))))
+
+(define-concolic-test prop-reverse-args
+  #:inputs
+  [F (->s (->s integer integer)
+          (->s integer integer))]
+  #:prop
+  (prop-not-error-bug
+   (λ () (reverse-args F))))
+*)
+
+let omega _ = assume false
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f must call the first two functions with 0 to tell them apart
+  - Then f must _not_ call the next two functions with 0, or they
+    will vanish, or else it must catch vanish (which is what we do)
+    (Note: we do not catch max step in practice, which is technically
+      unsound)
+  - By only calling the next two functions with 1, it can tell them
+    apart.
+
+  Then all those results must be different to hit the bug.
+
+  We build a table like this:
+
+              |
+    --------------------
+        |     |    |
+    --------- | --------
+      0 | 10  |  0 | 12
+      1 | bot |    |
+              |
+        |     |    |
+    --------- | --------
+      0 | 23  |  0 | 34
+      1 | bot |    |
+              |
+        |     |    |
+    --------- | --------
+      1 | 37  |  1 | 56
+      0 | bot |    |
+              |
+        |     |    |
+    --------- | ----------
+      1 | 41  |  1 | 78
+      0 | bot |    |
+
+  The tables on the LHS are technically incomparable.
+*)
+let reverse_args (f : (int -> int) -> (int -> int)) : int =
+  let n1 = f (fun n -> if n == 0 then 10 else omega ()) 0 in
+  let n2 = f (fun n -> if n == 0 then 23 else omega ()) 0 in
+  let n3 = f (fun m -> if m == 1 then 37 else omega ()) 1 in
+  let n4 = f (fun m -> if m == 1 then 41 else omega ()) 1 in
+  if n1 == 12 && n2 == 34 && n3 == 56 && n4 == 78 then
+    error ()  (* BUG *)
+  else
+    0
+
+(* Counterexample to the above (unused) *)
+let reverse_args_ce f x =
+  let k = f x in
+  if k == 10 then 12
+  else if k == 23 then 34
+  else if k == 37 then 56
+  else if k == 41 then 78
+  else 0
+
+(*
+  CHOP can generate this (where I've trimmed out a bunch of unreachables)
+  in about 1 minute on my machine:
+
+(λ (x0)
+      (cond
+        (λ (x1)
+          (cond
+           ((equal? x1 0)
+            (let ((x2 (x0 0)))
+              (cond
+               ((equal? x2 10) 12)
+               ((equal? x2 23) 34)
+               )))
+           ((equal? x1 1)
+            (let ((x3 (x0 1)))
+              (cond
+               ((equal? x3 37) 56)
+               ((equal? x3 41) 78)
+               )))
+           )))
+       ))
+
+i.e.
+  fun x0 x1 ->
+    if x1 = 0 then
+      let x2 = x0 0 in
+      if x2 = 10 then 12
+      else if x2 = 23 then 34
+      else assert false
+    else
+      let x3 = x0 1 in
+      if x3 = 37 then 56
+      else if x3 = 41 then 78
+      else assert false
+*)

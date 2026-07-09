@@ -1,0 +1,23 @@
+(* TEST
+  include exhaust;
+*)
+
+(*
+  This just changes a branch in the original test at
+    derived_guarded_first_order_sequential_calls
+
+  The idea is that to make it past the `let _ = ...` line,
+  the function `f` would have to _not_ call its argument
+  on the value 2. However, to reach the error on the next
+  line, it would have to call its argument with 2. So it
+  should not be possible to reach the error if `f` is a
+  real deterministic function.
+*)
+
+let omega _ = assume false
+let error _ = assert false
+
+let g (f : (int -> int) -> int) : int =
+  let _ = f (fun x -> if x == 2 then omega () else 0) in
+  f (fun w -> if w == 2 then error () else 0) (* no bug reachable! *)
+

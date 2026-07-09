@@ -1,0 +1,57 @@
+(* TEST
+  include refute;
+*)
+(*
+  Original code:
+
+(define (guarded-first-order f)
+  (cond
+    [(= (+ (f (λ (n) 4))
+          (f (λ (y) ( * y 2))))
+        10)
+    (when (= (f (λ (m) 0)) -1)
+      (f (λ (w)
+            (when (= w 2) (error-bug "REAL"))
+            0)))]
+    [else 0]))
+
+(define guarded-first-order:ce
+  (list
+  (λ (g)
+    (if (= (g 2) 4)
+        5
+        -1))))
+
+(define-concolic-test prop-guarded-first-order
+  #:inputs
+  [F (->s (->s integer integer) integer)]
+  #:prop
+  (prop-not-error-bug
+   (λ () (guarded-first-order F))))
+*)
+
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f must make sum = 10: (f (λn.4)) + (f (λy.y*2)) = 10
+    e.g. return 5 each time.
+  - f must make (f (λm.0)) = -1
+  - Then f must call its last argument with 2.
+    (note that the first two functions return the same thing
+    when called with 2)
+*)
+let guarded_first_order (f : (int -> int) -> int) : int =
+  let sum = f (fun n -> 4) + f (fun y -> y * 2) in
+  if sum == 10 then
+    if f (fun m -> 0) == -1 then
+      f (fun w -> if w == 2 then error () (* BUG *) else 0)
+    else
+      0
+  else
+    0
+
+(* Counterexample to the above *)
+let guarded_first_order_ce g =
+  if g 2 == 4 then 5
+  else -1

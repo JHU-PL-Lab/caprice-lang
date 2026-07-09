@@ -1,0 +1,34 @@
+(* TEST
+  include refute;
+*)
+
+let f (g : (bottom -> bottom) -> int) : int =
+  let _ = g (fun x -> x) in
+  let _ = g (fun x -> x + 1) in
+  true (* FIXME: we should get here. A constant function works. *)
+
+let f (g : (bottom -> bottom) -> bottom) : int =
+  let _ = g (fun x -> x) in (* this will always diverge, so we never should go past it *)
+  false (* never gets here *)
+
+(*
+  We _wouldn't_ refute the last example if we only had two options:
+  1. Generate the constant function, which eagerly picks a return value
+  and will always return it on any application.
+  2. Generate n witnesses for the n entries in the table.
+
+  So we can also generate the empty table, which will vanish on any application.
+  Since it's empty, it has no witnesses. Voila! That's all we need.
+
+  Are there any functions that cannot exist? Nope.
+
+    (fun _ -> omega omega) : top -> bottom <: a -> b
+
+  for any a and b.
+
+  Any the empty table behaves like (fun _ -> omega omega), so we're good.
+  We just also need the constant function.
+
+  But is it a problem that we try to generate a return value? What if that
+  fails? If that fails, then the type is ill formed, I'd say.
+*)

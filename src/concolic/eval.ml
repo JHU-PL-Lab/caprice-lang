@@ -1221,15 +1221,24 @@ let eval
       end
     | _ ->
       match c with
-      | CSingle -> return Cdata.true_
+      | CBottom -> make false
+      | CSingle -> make true
       | CIntensional v' ->
         return (Val.intensional_equal v v')
       | CFun { tfun = { domain ; codomain } ; mapping } ->
         let* comp_fun = get_cell mapping in
         let eq arg mapsto =
           Val.handle_any v ~dat:(fun f ->
-            let* res = eval_appl (Val.discard_wrapper f) arg in
-            extensional_equal mapsto res
+            catch (eval_appl (Val.discard_wrapper f) arg)
+              ~ok:(fun res -> extensional_equal mapsto res)
+              ~err:(function
+                | Vanish ->
+                  begin match mapsto with
+                  | CBottom -> make true
+                  | _ -> make false
+                  end
+                | err -> escape err
+              )
           ) ~typ:(fun _ -> make false)
         in
         begin match comp_fun with
@@ -1336,7 +1345,7 @@ let eval
       | VTypePoly _
       | VTypeModule _ -> return (CIntensional v)
       | VTypeSingle _ -> return CSingle
-      | VTypeBottom -> escape (Refutation (v, t))
+      | VTypeBottom -> return CBottom
       | VTypeMu { var ; closure } ->
         let* t_body = unroll_mu var closure in
         make_comparable t_body v

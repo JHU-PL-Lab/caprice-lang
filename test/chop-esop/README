@@ -1,0 +1,7 @@
+
+The tests in this directory come from the paper
+    Sound and Complete Concolic Testing for Higher-order Functions
+  by
+    Shu-Hung You, Robert Bruce Findler, and Christos Dimoulas
+or they come from the directories `calls-functions/` and `extra-calls-functions/` found at the following permalink:
+https://github.com/shhyou/chop-esop-supplementary/tree/0d782e8e93631ce23fb3ddddebd79fc48b6cc4d9/benchmarks/concolic-hop

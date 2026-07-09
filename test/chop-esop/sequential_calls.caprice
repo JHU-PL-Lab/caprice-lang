@@ -1,0 +1,49 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  Original code:
+
+(define (Omega) (Omega))
+
+(define (sequential-calls f)
+  (f (λ (n) (if (= n 7) 73 (Omega))))
+  (f (λ (n) (if (= n 7) 64
+                (if (= n 31)
+                    (error-bug "REAL")
+                    73)))))
+
+(define sequential-calls:ce
+  (list
+   (λ (g)
+     (cond
+       [(= (g 7) 64) (g 31)]
+       [else         0]))))
+
+(define-concolic-test prop-sequential-calls
+  #:inputs
+  [F (->s (->s integer integer) integer)]
+  #:prop
+  (prop-not-error-bug
+   (λ () (sequential-calls F))))
+*)
+
+let omega _ = assume false
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - f must call its first argument with 7
+  - Then it must call its second argument with something that is not 7 or 31
+*)
+let sequential_calls (f : (int -> int) -> int) : int =
+  let _ = f (fun n -> if n == 7 then 73 else omega ()) in
+  f (fun n -> if n == 7 then 64
+              else if n == 31 then error ()  (* BUG *)
+              else 73)
+
+(* Counterexample for the above (unused) *)
+let sequential_calls_ce g =
+  if g 7 == 64 then g 31
+  else 0

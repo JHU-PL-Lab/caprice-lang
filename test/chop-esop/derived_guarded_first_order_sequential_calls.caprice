@@ -1,0 +1,58 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  Original code:
+
+(define (Omega) (Omega))
+
+(define (derived-guarded-first-order-sequential-calls f)
+  (cond
+    [(= (+ (f (λ (n) 4))
+          (f (λ (y) ( * y 2))))
+        10)
+    (f (λ (x)
+          (unless (= x 2) (Omega))
+          0))
+    (f (λ (w)
+          (when (= w 2) (error-bug "REAL"))
+          0))]
+    [else 0]))
+
+(define derived-guarded-first-order-sequential-calls:ce
+  (list
+  (λ (g)
+    (g 2)
+    5)))
+
+(define-concolic-test prop-derived-guarded-first-order-sequential-calls
+  #:inputs
+  [F (->s (->s integer integer) integer)]
+  #:prop
+  (prop-not-error-bug
+  (λ () (derived-guarded-first-order-sequential-calls F))))
+*)
+
+let omega _ = assume false
+let error _ = assert false
+
+(*
+  The bug is reachable:
+  - First, f must make (f (λn.4)) + (f (λy.y*2)) = 10
+    e.g. by returning 5 each time.
+  - Then call f with a function that must be called with 2 to continue.
+  - Then call f with a function that must be called with 2 to find the error.
+*)
+let derived_guarded_first_order_sequential_calls (f : (int -> int) -> int) : int =
+  let sum = f (fun n -> 4) + f (fun y -> y * 2) in
+  if sum == 10 then
+    let _ = f (fun x -> if x <> 2 then omega () else 0) in
+    f (fun w -> if w == 2 then error () (* BUG *) else 0)
+  else
+    0
+
+(* Counterexample to the above *)
+let derived_guarded_first_order_sequential_calls_ce g =
+  let _ = g 2 in
+  5

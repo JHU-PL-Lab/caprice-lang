@@ -1,0 +1,21 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  This test is not from chop-esop but is an adapation
+  of reverse_args.
+*)
+
+let omega _ = assume false
+let error _ = assert false
+
+let reverse_args (f : int -> (int -> int) -> int) : int =
+  let n1 = f 0 (fun n -> if n == 0 then 10 else omega ()) in
+  let n2 = f 0 (fun n -> if n == 0 then 23 else omega ()) in
+  let n3 = f 1 (fun m -> if m == 1 then 37 else omega ()) in
+  let n4 = f 1 (fun m -> if m == 1 then 41 else omega ()) in
+  if n1 == 12 && n2 == 34 && n3 == 56 && n4 == 78 then
+    error ()  (* BUG *)
+  else
+    0
