@@ -3,24 +3,22 @@ open Grammar
 
 let make_targets ~(max_tree_depth : int) (target : Target.t)
   (stem : Stem.t) : Target.t list * is_pruned:bool =
-  let max_prio = Path_priority.Priority max_tree_depth in
+  let max_prio = Priority.Priority max_tree_depth in
   let rec make acc_prio acc_formulas = function
     | [] -> [], ~is_pruned:false
-    | _ when Path_priority.geq acc_prio max_prio -> [], ~is_pruned:true
+    | _ when Priority.geq acc_prio max_prio -> [], ~is_pruned:true
     | { Path_item.when_ ; kind ; logged_inputs } as p_item :: tl ->
-      let path_priority =
-        Path_priority.plus acc_prio (Path_item.to_priority p_item)
-      in
+      let priority = Priority.plus acc_prio (Path_item.to_priority p_item) in
       match kind with
       | Nonflipping formula ->
-        make path_priority (Formula.BSet.add formula acc_formulas) tl
+        make priority (Formula.BSet.add formula acc_formulas) tl
       | Formula cond ->
         let new_target =
           Target.make (Formula.not_ cond) acc_formulas logged_inputs
-            ~path_priority ~when_
+            ~priority ~when_
         in
         let ret_targets, ~is_pruned =
-          make path_priority (Formula.BSet.add cond acc_formulas) tl
+          make priority (Formula.BSet.add cond acc_formulas) tl
         in
         new_target :: ret_targets, ~is_pruned
       | Tag { tag = _ ; alternatives } ->
@@ -28,11 +26,10 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
           assert (Tag.priority tag = Path_item.to_priority p_item);
           let key = Stepkey.Stepkey when_ in
           Target.make Formula.trivial acc_formulas
-            (Input_env.add KTag key tag p_item.logged_inputs) ~path_priority
-            ~when_
+            (Input_env.add KTag key tag p_item.logged_inputs) ~priority ~when_
         in
         let new_targets = List.map target_of_tag alternatives in
-        let ret_targets, ~is_pruned = make path_priority acc_formulas tl in
+        let ret_targets, ~is_pruned = make priority acc_formulas tl in
         List.rev_append new_targets ret_targets, ~is_pruned
   in
   make (Target.priority target) target.all_formulas (List.rev stem.rev_stem)

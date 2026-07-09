@@ -1,5 +1,5 @@
 
-module Q = Psq.Make (Target) (Path_priority)
+module Q = Psq.Make (Target) (Priority)
 
 type t = BFS of Q.t [@@unboxed]
 

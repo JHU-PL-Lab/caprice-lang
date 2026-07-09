@@ -209,17 +209,15 @@ let read_and_log_input (kind : 'a Input.Kind.t) (input_env : Input_env.t)
 let target_to_here : 'env. (Target.t, 'env) m =
   { run = fun ~reject:_ ~accept state step _ { target ; _ } ->
     assert (Step.compare step (Target.step target) > 0);
-    let path_priority =
-      Path_priority.plus
-        (Target.priority target)
-        (Stem.priority state.stem)
+    let priority =
+      Priority.plus (Target.priority target) (Stem.priority state.stem)
+    in
+    let all_formulas =
+      Formula.BSet.union target.all_formulas (Stem.formulas state.stem)
     in
     accept (
-      Target.make Formula.trivial
-        (Formula.BSet.union target.all_formulas (Stem.formulas state.stem))
-        state.logged_inputs
-        ~path_priority
-        ~when_:Step.dummy
+      Target.make Formula.trivial all_formulas state.logged_inputs
+        ~priority ~when_:Step.dummy
     ) state step
   }
 

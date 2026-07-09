@@ -18,5 +18,5 @@ let formulas (t : t) : Formula.BSet.t =
 
 let priority t =
   List.fold_left (fun acc item ->
-    Path_priority.plus (Path_item.to_priority item) acc
-  ) Path_priority.zero t.rev_stem
+    Priority.plus (Path_item.to_priority item) acc
+  ) Priority.zero t.rev_stem

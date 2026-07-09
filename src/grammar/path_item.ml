@@ -7,8 +7,8 @@ type kind =
 
 type t = { when_ : Step.t ; kind : kind ; logged_inputs : Input_env.t }
 
-let to_priority (t : t) : Path_priority.t =
+let to_priority (t : t) : Priority.t =
   match t.kind with
-  | Formula _ -> Path_priority.one
-  | Nonflipping _ -> Path_priority.zero
+  | Formula _ -> Priority.one
+  | Nonflipping _ -> Priority.zero
   | Tag { tag ; _ } -> Tag.priority tag

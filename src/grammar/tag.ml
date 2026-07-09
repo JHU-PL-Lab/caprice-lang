@@ -41,16 +41,16 @@ let of_record_label rlabel =
   Label (Lang.Record.Label.to_ident rlabel, Check)
 
 let priority = function
-  | Label (_, Gen) -> Path_priority.one
-  | Label (_, Check) -> Path_priority.zero
+  | Label (_, Gen) -> Priority.one
+  | Label (_, Check) -> Priority.zero
   | (Left reason | Right reason) ->
     match reason with
     (* Give priority because we need to stop trying longer lists at some point. *)
-    | GenList -> Path_priority.one
-    (* No priority for tags that just check without generating more paths.
+    | GenList -> Priority.one
+    (* Give no priority for tags that just check without generating more paths.
       If we give priority to these, then we run out of budget very quickly
       because there may be many of these along a single path. *)
-    | _ -> Path_priority.zero
+    | _ -> Priority.zero
 
 let to_string = function
   | Left reason -> Printf.sprintf "Left (%s)" (reason_to_string reason)

@@ -1,4 +1,9 @@
 
+(*
+  Priority measures how much the concolic evaluator should prioritize a target.
+  Smaller priority is most-prioritized; a target in the queue with priority 0
+  will be popped immediately.
+*)
 type t = Priority of int [@@unboxed]
 
 let compare (Priority a) (Priority b) = Int.compare a b
