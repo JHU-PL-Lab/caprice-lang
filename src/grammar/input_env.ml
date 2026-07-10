@@ -1,22 +1,31 @@
 
-module Make (K : Smt.Symbol.KEY) = struct
-  type t = Input.t Utils.Uid.Map.t
+(*
+  We will use a zipper map that has fast reads and writes nearest the last read
+  or write because inputs are very often read and written in increasing order.
+  Inputs are keyed by how many steps the program has taken, which is increasing.
+  It only takes exactly one traversal to reset at the start of the program, and
+  otherwise the actions are cheap.
+*)
+module UMap = Utils.Zipper_map.Make (Utils.Uid)
 
-  let empty : t = Utils.Uid.Map.empty
+module Make (K : Smt.Symbol.KEY) = struct
+  type t = Input.t UMap.t
+
+  let empty : t = UMap.empty ()
 
   (* Propagates failing extraction. Is None if the key doesn't exist at all *)
   let find (type a) (kind : a Input.Kind.t) (key : K.t) (m : t) : a option =
-    Option.map (Input.extract_exn kind) (Utils.Uid.Map.find_opt (K.uid key) m)
+    Option.map (Input.extract_exn kind) (UMap.find_opt (K.uid key) m)
 
   let add (type a) (kind : a Input.Kind.t) (key : K.t) (input : a) (m : t) : t =
-    Utils.Uid.Map.add (K.uid key) (
+    UMap.add (K.uid key) (
       match kind with
       | Input.Kind.KBool -> Input.IBool input
       | KInt -> IInt input
       | KTag -> ITag input
     ) m
 
-  let extend = Utils.Uid.Map.extend
+  let extend = UMap.extend
 
   let to_string (m : t) : string =
     let make_mapping (uid, input) =
@@ -24,7 +33,7 @@ module Make (K : Smt.Symbol.KEY) = struct
     in
     let body =
       m
-      |> Utils.Uid.Map.to_list
+      |> UMap.to_list
       |> List.map make_mapping
       |> String.concat " ; "
     in
@@ -37,7 +46,7 @@ module Make (K : Smt.Symbol.KEY) = struct
         | Some i -> Input.IInt i
         | None -> IBool (Option.get (model.value (B uid)))
       in
-      Utils.Uid.Map.add uid v acc
+      UMap.add uid v acc
     ) empty model.domain
 end
 
