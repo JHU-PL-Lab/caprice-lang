@@ -19,68 +19,79 @@ module Make (Key : Map.OrderedType) = struct
   (* Must be created fresh to avoid weak type variables *)
   let empty () = { left = [] ; right = [] }
 
-  (*
-    Trade between the left and right lists so that either:
-    - if k exists as a key, then it is at the head of right
-    - otherwise all keys in the left are smaller than k and all in the right are
-      greater than k
-
-    We do not do this in place to align for a few reasons, which might not all
-    be well founded:
-    - We avoid the write barrier on every rotation.
-    - We can pass the list directly as an argument instead of writing into a
-      record field.
-    - We can avoid aligning lists that are written to, only those that are read.
-
-    To do it in place would be like this:
-      (* in place of the first `aligned` rec call *)
-      x.left <- binding :: x.left;
-      x.right <- tl_right;
-      align k x
-    and
-      (* in place of the second `aligned` rec call *)
-      x.right <- binding :: x.right;
-      x.left <- tl_left;
-      align k x
-    and return `()` instead of `left, right`.
-  *)
-  let rec aligned k left right =
+  (** Shift from the right list onto the left list while [key] is at least as
+    large as the head of the right list.
+    If [key] is strictly less than the right list, or the right list is empty,
+    then continues with [with_] instead of shifting. *)
+  let rec try_shift_onto_left_until ~with_ ~key left right =
     match right with
-    | (k_right, _) as binding :: tl_right when Key.compare k_right k < 0 ->
-      (* right head is too small; it needs to be on the left *)
-      aligned k (binding :: left) tl_right
-    | _ ->
-      begin match left with
-      | (k_left, _) as binding :: tl_left when Key.compare k_left k >= 0 ->
-        (* left head is too big; it needs to be on the right *)
-        aligned k tl_left (binding :: right)
-      | _ ->
-        left, right
-      end
+    | (k_right, v) as binding :: tl_right ->
+      let c = Key.compare k_right key in
+      if c = 0 then
+        (* aligned exactly on the desired key *)
+        left, Some v, right
+      else if c < 0 then
+        (* right head is too small; it needs to be on the left. Shift left
+          and stop once the key is hit. *)
+        shift_onto_left_until ~key (binding :: left) tl_right
+      else
+      with_ ~key left right
+    | [] ->
+      with_ ~key left right
 
-  let align k x =
-    let new_left, new_right = aligned k x.left x.right in
-    x.left <- new_left;
-    x.right <- new_right
+  (** Shift from the right list onto the left list while [key] is still smaller
+    than the right list.
+    Precondition: [key] is at least as large as the head of the right list. *)
+  and shift_onto_left_until ~key left right =
+    try_shift_onto_left_until ~key left right
+      ~with_:(fun ~key:_ l r -> l, None, r)
 
-  let find_opt k x =
-    align k x;
-    match x.right with
-    | (k', v) :: _ when Key.compare k k' = 0 -> Some v
-    | _ -> None
+  (** Shift from the left list onto the right list while [key] is smaller than
+    the head of the left list.
+    Precondition: [key] is at least as small as the head of the left list. *)
+  let rec shift_onto_right_until ~key left right =
+    match left with
+    | (k_left, v) as binding :: tl_left ->
+      let c = Key.compare k_left key in
+      if c = 0 then
+        (* align the key to be on the right *)
+        tl_left, Some v, binding :: right
+      else if c > 0 then
+        (* left head is small; shift from right until we hit the key *)
+        shift_onto_right_until ~key tl_left (binding :: right)
+      else
+        left, None, right
+    | [] ->
+      left, None, right
+
+  (**
+    Trade between the left and right lists so that either:
+    - if [key] exists as a key, then it is at the head of right
+    - otherwise all keys in the left are smaller than [key] and all in the right
+      are greater than [key]
+
+    This is done by trying to shift from right onto left. But if the right is
+    already above the key, then the key may be contained in the left, so we
+    shift from left onto right instead.
+  *)
+  let align ~key left right =
+    try_shift_onto_left_until ~key left right ~with_:shift_onto_right_until
+
+  let find_opt key x =
+    let left, v_opt, right = align ~key x.left x.right in
+    x.left <- left;
+    x.right <- right;
+    v_opt
 
   (*
     Rather than align the old map to point near this new binding, we only align
-    the new map. Thus, we do not call `align`.
+    the new map. We do not mutate the old map to point near this addition.
   *)
-  let add k v x =
-    let left, right = aligned k x.left x.right in
-    let new_right_tail =
-      match right with
-      | (k', _) :: tl when Key.compare k k' = 0 -> tl
-      | ls -> ls
-    in
-    { left ; right = (k, v) :: new_right_tail }
+  let add key v x =
+    let left, v_opt, right = align ~key x.left x.right in
+    match v_opt with
+    | Some _ -> { left ; right = (key, v) :: List.tl right }
+    | None -> { left ; right = (key, v) :: right }
 
   let to_list x =
     List.rev_append x.left x.right
