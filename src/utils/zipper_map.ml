@@ -96,11 +96,12 @@ module Make (Key : Map.OrderedType) = struct
   let to_list x =
     List.rev_append x.left x.right
 
-  let fold f acc x =
-    List.fold_left f acc (to_list x)
+  let fold_left f acc x =
+    let left_res = List.fold_right (fun a acc -> f acc a) x.left acc in
+    List.fold_left f left_res x.right
 
   let extend map ~with_ =
-    fold (fun acc (k, v) ->
+    fold_left (fun acc (k, v) ->
       add k v acc
     ) map with_
 end
