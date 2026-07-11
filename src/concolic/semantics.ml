@@ -212,9 +212,7 @@ let target_to_here : 'env. (Target.t, 'env) m =
     let priority =
       Priority.plus (Target.priority target) (Stem.priority state.stem)
     in
-    let all_formulas =
-      Formula.BSet.union target.all_formulas (Stem.formulas state.stem)
-    in
+    let all_formulas = Stem.formulas state.stem @ target.all_formulas in
     accept (
       Target.make Formula.trivial all_formulas state.logged_inputs
         ~priority ~when_:Step.dummy

@@ -1,7 +1,7 @@
 
 type t =
   { target_formula : bool Formula.t
-  ; all_formulas : Formula.BSet.t
+  ; all_formulas : bool Formula.t list
   ; i_env : Input_env.t
   ; id : Utils.Uid.t
   ; when_ : Step.t
@@ -9,7 +9,7 @@ type t =
 
 let empty : t =
   { target_formula = Formula.trivial
-  ; all_formulas = Formula.BSet.empty
+  ; all_formulas = []
   ; i_env = Input_env.empty
   ; id = Utils.Uid.make_new ()
   ; when_ = Step.dummy
@@ -34,10 +34,10 @@ let empty : t =
     comparison. Therefore, no two targets that represent the same program path
     should be made, or else they will be unequal.
 *)
-let make (last_formula : bool Formula.t) (other_formulas : Formula.BSet.t)
+let make (last_formula : bool Formula.t) (other_formulas : bool Formula.t list)
   (i_env : Input_env.t) ~(priority : Priority.t) ~(when_ : Step.t) : t =
-  let target_formula = Formula.BSet.scc last_formula ~wrt:other_formulas in
-  let all_formulas = Formula.BSet.add last_formula other_formulas in
+  let target_formula = Smt.Formula.scc last_formula ~wrt:other_formulas in
+  let all_formulas = last_formula :: other_formulas in
   let id = Utils.Uid.make_new () in
   { target_formula ; all_formulas ; i_env ; id ; when_ ; priority }
 

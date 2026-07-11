@@ -258,47 +258,38 @@ let symbols (type a) (e : (a, 'k) t) : Utils.Uid.Set.t =
   in
   symbols Utils.Uid.Set.empty e
 
-module Set = struct
-  module Make (K : Symbol.KEY) = struct
-    module M = Utils.Set_map.Make_W (struct
-      type nonrec t = (bool, K.t) t (* boolean formulas *)
-      let compare = compare (* polymorphic comparison is okay *)
-    end)
+(*
+  We use SCC for constraint set independence. This ideas originates in
+  EXE (https://dl.acm.org/doi/10.1145/1455518.1455522) Section 4.2.
+  However, we don't even need to solve the other connected components of
+  constraints because we reuse an input environment.
+  EXE uses Union Find in practice to do this, though they describe the
+  problem in terms of connect components in a graph.
 
-    include M.Set
+  Since only independent constraint sets are solved, there may be repeat
+  queries within a concolic run, and it could be beneficial to keep a cache of
+  solved formulas. We do not yet do this, though.
 
-    (*
-      We use SCC for constraint set independence. This ideas originates in
-      EXE (https://dl.acm.org/doi/10.1145/1455518.1455522) Section 4.2.
-      However, we don't even need to solve the other connect components of
-      constraints because we reuse an input environment.
-      EXE uses Union Find in practice to do this, though they describe the
-      problem with connect components in a graph.
-
-      Since independent constraint sets are solved, there may be repeat
-      queries, and it could be beneficial to keep a cache of solved formulas.
-      We do not yet do this, though.
-    *)
-    let scc (formula : (bool, K.t) T.t) ~(wrt : t) : (bool, K.t) T.t =
-      if is_const formula then formula else (* easy short circuit *)
-      let formula_symbols = symbols formula in
-      let all_with_symbols =
-        list_map (fun e -> (e, symbols e)) wrt
-      in
-      let rec collect acc_symbols acc_scc remaining =
-        let acc_symbols, acc_scc, any_newly_connected, remaining =
-          List.fold_left (fun (acc_symbols, acc_scc, any_newly_connected, remaining) (e, e_symbols) ->
-            if Utils.Uid.Set.disjoint acc_symbols e_symbols then
-              (acc_symbols, acc_scc, any_newly_connected, (e, e_symbols) :: remaining)
-            else
-              (Utils.Uid.Set.union acc_symbols e_symbols, e :: acc_scc, true, remaining)
-            ) (acc_symbols, acc_scc, false, []) remaining
-        in
-        if any_newly_connected && not (List.is_empty remaining) then
-          collect acc_symbols acc_scc remaining
+  To avoid many formula comparisons, we simply use lists (with potential
+  duplication) instead of sets of formulas. This seems to be performant in our
+  use case because there is relatively little duplication between formulas.
+*)
+let scc (formula : (bool, 'k) T.t) ~(wrt : (bool, 'k) t list) : (bool, 'k) T.t =
+  if is_const formula then formula else (* easy short circuit *)
+  let formula_symbols = symbols formula in
+  let all_with_symbols = List.map (fun e -> (e, symbols e)) wrt in
+  let rec collect acc_symbols acc_scc remaining =
+    let acc_symbols, acc_scc, any_newly_connected, remaining =
+      List.fold_left (fun (acc_symbols, acc_scc, any_newly_connected, remaining) (e, e_symbols) ->
+        if Utils.Uid.Set.disjoint acc_symbols e_symbols then
+          (acc_symbols, acc_scc, any_newly_connected, (e, e_symbols) :: remaining)
         else
-          acc_scc
-      in
-      and_ @@ collect formula_symbols [ formula ] all_with_symbols
-  end
-end
+          (Utils.Uid.Set.union acc_symbols e_symbols, e :: acc_scc, true, remaining)
+        ) (acc_symbols, acc_scc, false, []) remaining
+    in
+    if any_newly_connected && not (List.is_empty remaining) then
+      collect acc_symbols acc_scc remaining
+    else
+      acc_scc
+  in
+  and_ @@ collect formula_symbols [ formula ] all_with_symbols

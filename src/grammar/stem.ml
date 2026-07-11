@@ -8,13 +8,13 @@ let empty : t = { rev_stem = [] }
 let cons (p_item : Path_item.t) (t : t) : t =
   { rev_stem = p_item :: t.rev_stem }
 
-let formulas (t : t) : Formula.BSet.t =
-  List.fold_left (fun set item ->
+let formulas (t : t) : bool Formula.t list =
+  List.filter_map (fun item ->
     match item.Path_item.kind with
     | Formula cond
-    | Nonflipping cond -> Formula.BSet.add cond set
-    | Tag _ -> set
-  ) Formula.BSet.empty t.rev_stem
+    | Nonflipping cond -> Some cond
+    | Tag _ -> None
+  ) t.rev_stem
 
 let priority t =
   List.fold_left (fun acc item ->

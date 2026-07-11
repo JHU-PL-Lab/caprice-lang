@@ -11,14 +11,14 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
       let priority = Priority.plus acc_prio (Path_item.to_priority p_item) in
       match kind with
       | Nonflipping formula ->
-        make priority (Formula.BSet.add formula acc_formulas) tl
+        make priority (formula :: acc_formulas) tl
       | Formula cond ->
         let new_target =
           Target.make (Formula.not_ cond) acc_formulas logged_inputs
             ~priority ~when_
         in
         let ret_targets, ~is_pruned =
-          make priority (Formula.BSet.add cond acc_formulas) tl
+          make priority (cond :: acc_formulas) tl
         in
         new_target :: ret_targets, ~is_pruned
       | Tag { tag = _ ; alternatives } ->
