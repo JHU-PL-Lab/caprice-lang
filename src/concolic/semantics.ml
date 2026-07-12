@@ -18,6 +18,11 @@ module State = struct
     ; runs = []
     ; cells = Utils.Cell.Map.empty
     }
+
+  (* Empty state loaded with some inputs already logged so they do not need to
+    be logged again when read. *)
+  let of_inputs inputs =
+    { empty with logged_inputs = inputs }
 end
 
 module Context = struct
@@ -82,6 +87,19 @@ let assert_inputs_allowed : 'env. (unit, 'env) m =
     | Disallowed -> reject (Mismatch "Nondeterminism used when not allowed") state
   }
 
+(*
+  Do something with the current step count if that step count is past the
+  target. This is used to avoid pushing to the path and logging inputs until the
+  target has been reached.
+*)
+let[@inline] if_after_target (do_ : Step.t -> (unit, 'env) m) : (unit, 'env) m =
+  let* step = step in
+  let* { Context.target ; _ } = read_ctx in
+  if Step.compare step (Target.step target) <= 0 then
+    return ()
+  else
+    do_ step
+
 (**
   [push_tag_to_path ?alternatives tag] pushes [tag] onto the path stem, and records
     the [alternatives] as the other inputs possible so that a target can be made
@@ -91,13 +109,7 @@ let assert_inputs_allowed : 'env. (unit, 'env) m =
   to that stem if the step exceeds the target step.
 *)
 let push_tag_to_path ~(alternatives : Tag.t list) (tag : Tag.t) : (unit, 'env) m =
-  let* step = step in
-  let* { Context.target ; _ } = read_ctx in
-  if Step.compare step (Target.step target) <= 0 then
-    return ()
-  else
-    (* This tag comes after the target tag, so it needs to be put on the stem
-      because the target does not know about it. *)
+  if_after_target (fun step ->
     modify (fun (s : State.t) ->
       let kind = Path_item.Tag { tag ; alternatives } in
       let path_item =
@@ -106,12 +118,13 @@ let push_tag_to_path ~(alternatives : Tag.t list) (tag : Tag.t) : (unit, 'env) m
       let stem = Stem.cons path_item s.stem in
       { s with stem }
     )
+  )
 
 (**
   [log_input kind a] logs the input [a] with kind [kind] to have been
     read at the current time.
 *)
-let log_input (kind : 'a Input.Kind.t) (a : 'a) : (unit, 'env) m =
+let[@inline] log_input (kind : 'a Input.Kind.t) (a : 'a) : (unit, 'env) m =
   let* step in
   modify (fun (s : State.t) ->
     { s with logged_inputs =
@@ -125,8 +138,12 @@ let log_input (kind : 'a Input.Kind.t) (a : 'a) : (unit, 'env) m =
     time.
 *)
 let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
-  let* () = push_tag_to_path ~alternatives:[] tag in
-  log_input KTag tag
+  if_after_target (fun _ ->
+    (* Pushing the tag checks again if after target, but it is probably not that
+      expensive to do this check twice. *)
+    let* () = push_tag_to_path ~alternatives:[] tag in
+    log_input KTag tag
+  )
 
 (**
   [push_formula_to_path ?allow_flip formula] pushes the formula to the path stem
@@ -139,11 +156,7 @@ let push_formula_to_path ?(allow_flip : bool = true)
   if Smt.Formula.is_const formula then
     return ()
   else
-    let* { Context.target ; _ } = read_ctx in
-    let* step in
-    if Step.compare step (Target.step target) <= 0 then
-      return ()
-    else
+    if_after_target (fun step ->
       (* This branch comes at a time after the target branch, so it needs to be
         put on the stem since the target for this does not know about it. *)
       modify (fun (s : State.t) ->
@@ -159,6 +172,7 @@ let push_formula_to_path ?(allow_flip : bool = true)
         let stem = Stem.cons path_item s.stem in
         { s with stem }
       )
+    )
 
 (**
   [read_input kind input_env] is an optional input from [input_env] with the
@@ -170,10 +184,11 @@ let push_formula_to_path ?(allow_flip : bool = true)
   [push_and_log_tag] afterwards without incrementing the step beforehand.
   This is often done within forking.
 *)
-let read_input (kind : 'a Input.Kind.t) (input_env : Input_env.t) : ('a option, 'env) m =
+let read_input (kind : 'a Input.Kind.t) : ('a option, 'env) m =
   let* () = assert_inputs_allowed in
+  let* { Context.target ; _ } = read_ctx in
   let* step = step in
-  return (Input_env.find kind (Stepkey step) input_env)
+  return (Input_env.find kind (Stepkey step) target.i_env)
 
 (**
   [read_and_log_input kind input_env ~default] is an input from [input_env]
@@ -186,12 +201,14 @@ let read_input (kind : 'a Input.Kind.t) (input_env : Input_env.t) : ('a option, 
     beforehand. This is not done here because the alternatives are not known.
     Do this by calling [push_tag_to_path] immediately afterwards.
 *)
-let read_and_log_input (kind : 'a Input.Kind.t) (input_env : Input_env.t)
-  ~(default : 'a) : ('a, 'env) m =
-  let* input_opt = read_input kind input_env in
-  let input = Option.value input_opt ~default in
-  let* () = log_input kind input in
-  return input
+let read_and_log_input (kind : 'a Input.Kind.t) ~(default : 'a) : ('a, 'env) m =
+  let* input_opt = read_input kind in
+  match input_opt with
+  | Some input ->
+    return input
+  | None ->
+    let* () = log_input kind default in
+    return default
 
 (**
   [target_to_here] is a target representing the path to the current program
@@ -306,6 +323,7 @@ let local_mode (mode : Funtype.mode) (x : ('a, 'env) m) : ('a, 'env) m =
     empty state and environment.
 *)
 let run (x : ('a, Val.Env.t) m) (target : Target.t) : Eval_result.t * State.t =
-  match run x State.empty Env.empty { target ; det_context = Allowed } with
+  let state = State.of_inputs target.i_env in
+  match run x state Env.empty { target ; det_context = Allowed } with
   | Ok _, state -> Done, state
   | Error e, state -> e, state

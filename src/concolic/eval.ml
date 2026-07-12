@@ -14,15 +14,19 @@ let bad_input_env =
 open Grammar.Val.Error_messages
 
 (**
-  [eval] returns the list of runs (evaluation) of the program.
-  There are multiple runs because it sometimes forks the state
-  to symbolically evaluate.
+  [eval] returns the list of runs (evaluation) of the program.  There are
+  multiple runs because it sometimes forks the state to symbolically evaluate.
+
+  The [target] must contain an input environment that directs evaluation to that
+  target. Note that when targets are returned, they contain only the input
+  environment until that point, and they must be updated to contain the solution
+  to their constraints before being used here.
+
   Every fork calls [Utils.Time.yield_to_timer] so that timeout can be
   noticed reasonably frequently. Hence this must be run within a handler.
 *)
 let eval
   (pgm : Ast.statement list)
-  (input_env : Input_env.t)
   (target : Target.t)
   ~(max_step : Grammar.Step.t)
   ~(default_int : unit -> int)
@@ -47,7 +51,7 @@ let eval
       let* () = push_and_log_tag @@ Right reason in
       right
     in
-    let* l_opt = allow_inputs (read_input KTag input_env) in
+    let* l_opt = allow_inputs (read_input KTag) in
     match l_opt with
     | Some Left reason' when reason = reason' -> run_left
     | Some Right reason' when reason = reason' -> run_right
@@ -168,7 +172,7 @@ let eval
     (* symbolic values and branching *)
     | EPick_i ->
       let* step = step in
-      let* i = read_and_log_input KInt input_env ~default:(default_int ()) in
+      let* i = read_and_log_input KInt ~default:(default_int ()) in
       return_any (VInt (i, Stepkey.int_symbol step))
     | ENot e ->
       let* v = force_eval e in
@@ -739,7 +743,7 @@ let eval
       if Record.Label.Set.subset t_labels v_labels then
         (* incr step because about to read an input *)
         let* () = incr_step ~max_step in
-        let* l_opt = allow_inputs (read_input KTag input_env) in
+        let* l_opt = allow_inputs (read_input KTag) in
         let push_and_check label =
           let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
           check_label label
@@ -796,11 +800,11 @@ let eval
       return_any VUnit
     | VTypeInt ->
       let* step = step in
-      let* i = read_and_log_input KInt input_env ~default:(default_int ()) in
+      let* i = read_and_log_input KInt ~default:(default_int ()) in
       return_any (VInt (i, Stepkey.int_symbol step))
     | VTypeBool ->
       let* step = step in
-      let* b = read_and_log_input KBool input_env ~default:(default_bool ()) in
+      let* b = read_and_log_input KBool ~default:(default_bool ()) in
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun funtype ->
       let* table =
@@ -835,8 +839,8 @@ let eval
     | VTypeVariant variant_t ->
       let t_labels = Variant.Label.B.domain variant_t in
       let* l =
-        read_and_log_input KTag input_env
-          ~default:(default_constructor variant_t |> Grammar.Tag.of_variant_label Gen)
+        read_and_log_input KTag ~default:
+          (default_constructor variant_t |> Grammar.Tag.of_variant_label Gen)
       in
       begin match l with
       | Label (id, Gen) ->
@@ -913,7 +917,7 @@ let eval
   and force_gen_list
     : 'env. Val.tval -> (Val.any, 'env) m
     = fun body ->
-    let* l = read_and_log_input KTag input_env ~default:(Left GenList) in
+    let* l = read_and_log_input KTag ~default:(Left GenList) in
     match l with
     | Left GenList ->
       let* () = push_tag_to_path (Left GenList) ~alternatives:[ Right GenList ] in
