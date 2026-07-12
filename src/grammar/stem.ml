@@ -11,8 +11,7 @@ let cons (p_item : Path_item.t) (t : t) : t =
 let formulas (t : t) : bool Formula.t list =
   List.filter_map (fun item ->
     match item.Path_item.kind with
-    | Formula cond
-    | Nonflipping cond -> Some cond
+    | Formula { cond ; do_flip = _ } -> Some cond
     | Tag _ -> None
   ) t.rev_stem
 

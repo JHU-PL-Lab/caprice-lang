@@ -161,10 +161,7 @@ let push_formula_to_path ?(allow_flip : bool = true)
         put on the stem since the target for this does not know about it. *)
       modify (fun (s : State.t) ->
         let kind =
-          if allow_flip then
-            Path_item.Formula formula
-          else
-            Nonflipping formula
+          Path_item.Formula { cond = formula ; do_flip = allow_flip }
         in
         let path_item =
           { Path_item.when_ = step ; kind ; logged_inputs = s.logged_inputs }

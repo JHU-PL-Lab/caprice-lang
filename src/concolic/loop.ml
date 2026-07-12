@@ -10,9 +10,9 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
     | { Path_item.when_ ; kind ; logged_inputs } as p_item :: tl ->
       let priority = Priority.plus acc_prio (Path_item.to_priority p_item) in
       match kind with
-      | Nonflipping formula ->
-        make priority (formula :: acc_formulas) tl
-      | Formula cond ->
+      | Formula { cond ; do_flip = false } ->
+        make priority (cond :: acc_formulas) tl
+      | Formula { cond ; do_flip = true } ->
         let new_target =
           Target.make (Formula.not_ cond) acc_formulas logged_inputs
             ~priority ~when_
