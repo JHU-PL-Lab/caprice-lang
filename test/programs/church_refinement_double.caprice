@@ -1,6 +1,5 @@
 (* TEST
   include refute; # incomplete due to higher kinded polymorphism.
-  skip; # why is this taking forever in non-splaying but the lsp server says it finishes?
 *)
 
 let refine t pred = (type r) -> ((x : t) -> (if pred x then unit else bottom) -> r) -> r
@@ -20,7 +19,19 @@ let add_one (m : pos) : pos =
 
 let return x = fun _ f -> f x ()
 
-let rec mult (dep x : int) (dep y : int)
+(* When not splaying, and when wrapping, and when we do not refine the first argument
+  to be positive, this forks the computation into and more checks, never finishing
+  even a single run.
+
+  The problem amounts to the fact that this function never finishes:
+    let rec diverge (x : int) : int =
+      diverge x
+  because if the first arg to `mult` is not required to be positive, then `mult`
+  diverges.
+
+  Hence we require positive first argument.
+*)
+let rec mult (dep x : int | x > 0) (dep y : int)
   : refine int (fun i -> i == x * y) =
   fun r k ->
     if x == 1 then
