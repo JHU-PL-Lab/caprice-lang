@@ -276,7 +276,7 @@ module Make (Atom_cell : Utils.Types.P1) = struct
           (to_string domain) (Funtype.mode_to_string mode) (to_string cod_tval)
       | CodDependent (id, _closure) ->
         Printf.sprintf "(%s : %s) %s <codomain>"
-          (Ident.to_string id) (Funtype.mode_to_string mode) (to_string domain)
+          (Ident.to_string id) (to_string domain) (Funtype.mode_to_string mode)
       end
     | VTypeRecord map_body ->
       if Record.Label.Map.is_empty map_body then "{:}" else
