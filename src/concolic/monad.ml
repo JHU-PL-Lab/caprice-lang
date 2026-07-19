@@ -87,6 +87,12 @@ let[@inline] local_ctx (f : 'ctx -> 'ctx) (x : ('a, < ctx : 'ctx ; .. >) t)
       x.run ~reject ~accept state step env (f ctx)
   }
 
+let[@inline] local_ctx' (ctx: 'ctx) (x : ('a, < ctx : 'ctx ; .. >) t)
+  : ('a, < ctx : 'ctx ; .. >) t =
+  { run = fun ~reject ~accept state step env _ ->
+      x.run ~reject ~accept state step env ctx
+  }
+
 (*
   -----
   STATE

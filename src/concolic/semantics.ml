@@ -6,39 +6,24 @@ exception InvariantException of string
 
 module State = struct
   type t =
-    { stem : Stem.t (* we will cons to the path instead of union a log *)
-    ; logged_inputs : Input_env.t
+    { stem : Stem.t
     ; runs : Logged_run.t list
     ; cells : Utils.Cell.Map.t
     }
 
-  let empty : t =
-    { stem = Stem.empty
-    ; logged_inputs = Input_env.empty
+  let make target =
+    { stem = Stem.make target
     ; runs = []
     ; cells = Utils.Cell.Map.empty
     }
-
-  (* Empty state loaded with some inputs already logged so they do not need to
-    be logged again when read. *)
-  let of_inputs inputs =
-    { empty with logged_inputs = inputs }
 end
 
-module Context = struct
-  type det_context =
-    | Allowed
-    | Disallowed
-
-  type t =
-    { target : Target.t
-    ; det_context : det_context
-    }
-end
+(* Context: whether determinism is allowed or not *)
+type det_ctx = Allow_inputs | Disallow_inputs
 
 include Monad
 
-type ('a, 'env) m = ('a, < err : Eval_result.t ; env : 'env ; state : State.t ; ctx : Context.t >) t
+type ('a, 'env) m = ('a, < err : Eval_result.t ; env : 'env ; state : State.t ; ctx : det_ctx >) t
 
 module Matches = Val.Make_match (struct
   type nonrec 'a m = ('a, Val.Env.t) m
@@ -82,55 +67,35 @@ let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
 *)
 let assert_inputs_allowed : 'env. (unit, 'env) m =
   { run = fun ~reject ~accept state step _ ctx ->
-    match ctx.det_context with
-    | Allowed -> accept () state step
-    | Disallowed -> reject (Mismatch "Nondeterminism used when not allowed") state
+    match ctx with
+    | Allow_inputs -> accept () state step
+    | Disallow_inputs -> reject (Mismatch "Nondeterminism used when not allowed") state
   }
 
-(*
-  Do something with the current step count if that step count is past the
-  target. This is used to avoid pushing to the path and logging inputs until the
-  target has been reached.
-*)
-let[@inline] if_after_target (do_ : Step.t -> (unit, 'env) m) : (unit, 'env) m =
-  let* step = step in
-  let* { Context.target ; _ } = read_ctx in
-  if Step.compare step (Target.step target) <= 0 then
-    return ()
-  else
-    do_ step
+let modify_stem f =
+  let* step in
+  modify (fun (s : State.t) -> { s with stem = f step s.stem })
+
+let cons_to_stem kind =
+  modify_stem (fun step stem ->
+    let item = { Path_item.when_ = step ; kind } in
+    Stem.cons item stem
+  )
 
 (**
-  [push_tag_to_path ?alternatives tag] pushes [tag] onto the path stem, and records
-    the [alternatives] as the other inputs possible so that a target can be made
-    from them.
-
-  Because the state only tracks a stem instead of a full path, this only pushes
-  to that stem if the step exceeds the target step.
+  [push_tag_to_path ?alternatives tag] pushes [tag] onto the path stem, and
+  records the [alternatives] as the other inputs possible so that a target can
+  be made from them.
 *)
 let push_tag_to_path ~(alternatives : Tag.t list) (tag : Tag.t) : (unit, 'env) m =
-  if_after_target (fun step ->
-    modify (fun (s : State.t) ->
-      let kind = Path_item.Tag { tag ; alternatives } in
-      let path_item =
-        { Path_item.when_ = step ; logged_inputs = s.logged_inputs ; kind }
-      in
-      let stem = Stem.cons path_item s.stem in
-      { s with stem }
-    )
-  )
+  cons_to_stem (Path_item.Tag { tag ; alternatives })
 
 (**
-  [log_input kind a] logs the input [a] with kind [kind] to have been
-    read at the current time.
+  [log_input kind a] logs the input [a] with kind [kind] to have been read at
+  the current time.
 *)
 let[@inline] log_input (kind : 'a Input.Kind.t) (a : 'a) : (unit, 'env) m =
-  let* step in
-  modify (fun (s : State.t) ->
-    { s with logged_inputs =
-        Input_env.add kind (Stepkey step) a s.logged_inputs
-    }
-  )
+  modify_stem (fun step stem -> Stem.log kind (Stepkey step) a stem)
 
 (**
   [push_and_log_tag tag] pushes the [tag] to the path stem without alternatives
@@ -138,12 +103,10 @@ let[@inline] log_input (kind : 'a Input.Kind.t) (a : 'a) : (unit, 'env) m =
     time.
 *)
 let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
-  if_after_target (fun _ ->
-    (* Pushing the tag checks again if after target, but it is probably not that
-      expensive to do this check twice. *)
-    let* () = push_tag_to_path ~alternatives:[] tag in
-    log_input KTag tag
-  )
+  (* Both pushing the tag and logging the input check (internally, inside the
+    stem) that the target has been passed, but the check is relatively cheap. *)
+  let* () = push_tag_to_path ~alternatives:[] tag in
+  log_input KTag tag
 
 (**
   [push_formula_to_path ?allow_flip formula] pushes the formula to the path stem
@@ -156,20 +119,7 @@ let push_formula_to_path ?(allow_flip : bool = true)
   if Smt.Formula.is_const formula then
     return ()
   else
-    if_after_target (fun step ->
-      (* This branch comes at a time after the target branch, so it needs to be
-        put on the stem since the target for this does not know about it. *)
-      modify (fun (s : State.t) ->
-        let kind =
-          Path_item.Formula { cond = formula ; do_flip = allow_flip }
-        in
-        let path_item =
-          { Path_item.when_ = step ; kind ; logged_inputs = s.logged_inputs }
-        in
-        let stem = Stem.cons path_item s.stem in
-        { s with stem }
-      )
-    )
+    cons_to_stem (Path_item.Formula { cond = formula ; do_flip = allow_flip })
 
 (**
   [read_input kind input_env] is an optional input from [input_env] with the
@@ -183,9 +133,9 @@ let push_formula_to_path ?(allow_flip : bool = true)
 *)
 let read_input (kind : 'a Input.Kind.t) : ('a option, 'env) m =
   let* () = assert_inputs_allowed in
-  let* { Context.target ; _ } = read_ctx in
-  let* step = step in
-  return (Input_env.find kind (Stepkey step) target.i_env)
+  let* step in
+  let* { State.stem ; _ } = get in
+  return (Input_env.find kind (Stepkey step) stem.target.i_env)
 
 (**
   [read_and_log_input kind input_env ~default] is an input from [input_env]
@@ -220,17 +170,20 @@ let read_and_log_input (kind : 'a Input.Kind.t) ~(default : 'a) : ('a, 'env) m =
   Invariant: this should only be sequenced when the old target has been
     reached. It is asserted that this invariant holds.
 *)
-let target_to_here : 'env. (Target.t, 'env) m =
-  { run = fun ~reject:_ ~accept state step _ { target ; _ } ->
-    assert (Step.compare step (Target.step target) > 0);
-    let priority =
-      Priority.plus (Target.priority target) (Stem.priority state.stem)
+let reset_target : 'env. (unit, 'env) m =
+  { run = fun ~reject:_ ~accept state step _ _ ->
+    let stem = state.stem in
+    assert (Target.is_before stem.target step);
+    let target =
+      Target.make Formula.trivial (Stem.path_formulas stem)
+        (Stem.path_inputs stem) ~priority:(Stem.path_priority stem)
+        ~when_:Step.dummy
     in
-    let all_formulas = Stem.formulas state.stem @ target.all_formulas in
-    accept (
-      Target.make Formula.trivial all_formulas state.logged_inputs
-        ~priority ~when_:Step.dummy
-    ) state step
+    accept ()
+      { state with
+        stem = Stem.make target
+      ; runs = { stem ; answer = Exhausted } :: state.runs
+      } step
   }
 
 (**
@@ -243,19 +196,17 @@ let target_to_here : 'env. (Target.t, 'env) m =
     so that the effect is handled.
 *)
 let fork (forked_m : 'a. ('a, 'env) m) : (unit, 'env) m =
-  let* { Context.det_context ; _ } = read_ctx in
-  let* target = target_to_here in
-  fork forked_m { target ; det_context }
-    ~setup_state:(fun state -> { state with stem = Stem.empty })
+  let* ctx = read_ctx in
+  let* () = reset_target in
+  fork forked_m ctx
+    ~setup_state:Fun.id
     ~restore_state:
       (fun e ~og ~forked_state ->
-        let forked_run =
-          { Logged_run.stem = forked_state.stem
-          ; target
-          ; answer = Eval_result.to_answer e }
-        in
         (* Note that the forked state runs include the original runs (see setup_state)
             so we will overwrite og runs; they are included inside forked_state.runs *)
+        let forked_run =
+          { Logged_run.stem = forked_state.stem ; answer = Eval_result.to_answer e }
+        in
         { og with runs = forked_run :: forked_state.runs }
       )
     (fun res ->
@@ -295,14 +246,14 @@ let new_lazy_cell : 'env. Val.lgen -> (Val.dval, 'env) m = fun lgen ->
     is a failure.
 *)
 let[@inline] disallow_inputs (x : ('a, 'env) m) : ('a, 'env) m =
-  local_ctx (fun (ctx : Context.t) -> { ctx with det_context = Disallowed }) x
+  local_ctx' Disallow_inputs x
 
 (**
   [allow_inputs x] runs [x] such that any [assert_inputs_allowed]
     is NOT a failure.
 *)
 let[@inline] allow_inputs (x : ('a, 'env) m) : ('a, 'env) m =
-  local_ctx (fun (ctx : Context.t) -> { ctx with det_context = Allowed }) x
+  local_ctx' Allow_inputs x
 
 (**
   [local_mode mode x] runs [x] in the context based on
@@ -320,7 +271,7 @@ let local_mode (mode : Funtype.mode) (x : ('a, 'env) m) : ('a, 'env) m =
     empty state and environment.
 *)
 let run (x : ('a, Val.Env.t) m) (target : Target.t) : Eval_result.t * State.t =
-  let state = State.of_inputs target.i_env in
-  match run x state Env.empty { target ; det_context = Allowed } with
+  let state = State.make target in
+  match run x state Env.empty Allow_inputs with
   | Ok _, state -> Done, state
   | Error e, state -> e, state

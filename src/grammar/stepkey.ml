@@ -10,6 +10,8 @@ end
 
 include T
 
+let step (Stepkey step) = step
+
 module Symb = Smt.Symbol.Make (T)
 
 let int_symbol step = Smt.Formula.symbol (Symb.make_int (Stepkey step))

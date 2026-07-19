@@ -1,14 +1,14 @@
 
 open Grammar
 
-let make_targets ~(max_tree_depth : int) (target : Target.t)
-  (stem : Stem.t) : Target.t list * is_pruned:bool =
+let adjacent_targets ~(max_tree_depth : int) (stem : Stem.t)
+  : Target.t list * is_pruned:bool =
   let max_prio = Priority.Priority max_tree_depth in
   let rec make acc_prio acc_formulas = function
     | [] -> [], ~is_pruned:false
     | _ when Priority.geq acc_prio max_prio -> [], ~is_pruned:true
-    | { Path_item.when_ ; kind ; logged_inputs } as p_item :: tl ->
-      let priority = Priority.plus acc_prio (Path_item.to_priority p_item) in
+    | ({ Path_item.when_ ; kind } as p_item, logged_inputs) :: tl ->
+      let priority = Priority.plus acc_prio (Path_item.priority p_item) in
       match kind with
       | Formula { cond ; do_flip = false } ->
         make priority (cond :: acc_formulas) tl
@@ -23,29 +23,28 @@ let make_targets ~(max_tree_depth : int) (target : Target.t)
         new_target :: ret_targets, ~is_pruned
       | Tag { tag = _ ; alternatives } ->
         let target_of_tag tag =
-          assert (Tag.priority tag = Path_item.to_priority p_item);
+          assert (Tag.priority tag = Path_item.priority p_item);
           let key = Stepkey.Stepkey when_ in
           Target.make Formula.trivial acc_formulas
-            (Input_env.add KTag key tag p_item.logged_inputs) ~priority ~when_
+            (Input_env.add KTag key tag logged_inputs) ~priority ~when_
         in
         let new_targets = List.map target_of_tag alternatives in
         let ret_targets, ~is_pruned = make priority acc_formulas tl in
         List.rev_append new_targets ret_targets, ~is_pruned
   in
-  make (Target.priority target) target.all_formulas (List.rev stem.rev_stem)
+  let target = stem.target in
+  make (Target.priority target) target.all_formulas (Stem.forward_stem stem)
 
 let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) :
   [ `Quit of Answer.t | `Cont of Target.t list * Answer.t ] =
   let rec collect acc_targets acc_answer = function
     | [] -> `Cont (acc_targets, acc_answer)
-    | run :: _ when Answer.is_error run.Logged_run.answer ->
-      `Quit run.answer (* an error is the goal, and we found it! *)
-    | run :: tl ->
-      let new_targets, ~is_pruned =
-        make_targets run.target run.stem ~max_tree_depth
-      in
+    | { Logged_run.answer ; _ } :: _ when Answer.is_error answer ->
+      `Quit answer (* an error is the goal, and we found it! *)
+    | { answer ; stem } :: tl ->
+      let new_targets, ~is_pruned = adjacent_targets stem ~max_tree_depth in
       let targets = List.rev_append new_targets acc_targets in
-      let run_answer = if is_pruned then Answer.prune run.answer else run.answer in
+      let run_answer = if is_pruned then Answer.prune answer else answer in
       let answer = Answer.min acc_answer run_answer in
       collect targets answer tl
   in

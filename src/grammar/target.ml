@@ -15,6 +15,9 @@ let empty : t =
   ; when_ = Step.dummy
   ; priority = Priority.zero }
 
+let is_before t step =
+  Step.compare t.when_ step < 0
+
 (**
   [make last_formula other_formula i_env ~priority ~when_] makes a target whose
     respective program path has priority [priority]. The target can be run if
