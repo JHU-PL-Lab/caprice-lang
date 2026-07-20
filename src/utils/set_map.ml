@@ -36,6 +36,14 @@ module Make_W (K : Baby.OrderedType) = struct
     let mapM (module M : Types.INDEXED_MONAD) (f : 'a -> ('b, 'i) M.m)
         (x : 'a t) : ('b t, 'i) M.m =
       mapiM (module M) (fun _ a -> f a) x
+
+    let list_map (f : key -> 'a -> 'b) (t : 'a t) : 'b list =
+      let[@tail_mod_cons] rec aux enum =
+        match Enum.head_opt enum with
+        | Some (k, a) -> f k a :: aux (Enum.tail enum)
+        | None -> []
+      in
+      aux (Enum.enum t)
   end
 
   module Set = struct

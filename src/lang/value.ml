@@ -218,19 +218,19 @@ module Make (Atom_cell : Utils.Types.P1) = struct
     | VVariant { label ; payload } ->
       Printf.sprintf "(%s %s)" (Variant.Label.to_string label) (any_to_string payload)
     | VRecord map_body ->
-      Record.Label.Map.to_list map_body
-      |> List.map (fun (key, data) -> Printf.sprintf "%s = %s"
-          (Record.Label.to_string key) (any_to_string data)
-        )
-      |> String.concat " ; "
-      |> Printf.sprintf "{ %s }"
+      let fields =
+        Record.Label.Map.list_map (fun key data ->
+          Printf.sprintf "%s = %s" (Record.Label.to_string key) (any_to_string data)
+        ) map_body
+      in
+      Printf.sprintf "{ %s }" (String.concat " ; " fields)
     | VModule map_body ->
-      Record.Label.Map.to_list map_body
-      |> List.map (fun (key, data) -> Printf.sprintf "let %s = %s"
-          (Record.Label.to_string key) (any_to_string data)
-        )
-      |> String.concat " "
-      |> Printf.sprintf "struct %s end"
+      let decls =
+        Record.Label.Map.list_map (fun key data ->
+          Printf.sprintf "let %s = %s" (Record.Label.to_string key) (any_to_string data)
+        ) map_body
+      in
+      Printf.sprintf "struct %s end" (String.concat " " decls)
     | VTuple (v1, v2) ->
       Printf.sprintf "(%s, %s)" (any_to_string v1) (any_to_string v2)
     | VFunFix { fvar ; param ; closure = _ } ->
@@ -280,20 +280,26 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       end
     | VTypeRecord map_body ->
       if Record.Label.Map.is_empty map_body then "{:}" else
-      Record.Label.Map.to_list map_body
-      |> List.map (fun (label, tau) -> Printf.sprintf "%s : %s" (Record.Label.to_string label) (to_string tau))
-      |> String.concat " ; "
-      |> Printf.sprintf "{ %s }"
+      let decls =
+        Record.Label.Map.list_map (fun label tau ->
+          Printf.sprintf "%s : %s" (Record.Label.to_string label) (to_string tau)
+        ) map_body
+      in
+      Printf.sprintf "{ %s }" (String.concat " ; " decls)
     | VTypeModule { captured = table ; env = _ } ->
-      table
-      |> List.map (fun (label, _closure) -> Printf.sprintf "val %s" (Record.Label.to_string label))
-      |> String.concat " "
-      |> Printf.sprintf "sig %s end"
+      let vals =
+        List.map (fun (label, _closure) ->
+          Printf.sprintf "val %s" (Record.Label.to_string label)
+        ) table
+      in
+      Printf.sprintf "sig %s end" (String.concat " " vals)
     | VTypeVariant map_body ->
-      Variant.Label.Map.to_list map_body
-      |> List.map (fun (label, tau) -> Printf.sprintf "%s of %s" (Variant.Label.to_string label) (to_string tau))
-      |> String.concat " | "
-      |> Printf.sprintf "(%s)"
+      let constructors =
+        Variant.Label.Map.list_map (fun label tau ->
+          Printf.sprintf "%s of %s" (Variant.Label.to_string label) (to_string tau)
+        ) map_body
+      in
+      Printf.sprintf "(%s)" (String.concat " | " constructors)
     | VTypeRefine { var ; tau ; predicate = _closure } ->
       Printf.sprintf "{ %s : %s | <predicate> }" (Ident.to_string var) (to_string tau)
     | VTypeTuple (t1, t2) ->
@@ -317,9 +323,9 @@ module Make (Atom_cell : Utils.Types.P1) = struct
         (any_to_string v)
 
     let missing_pattern (v : any) (patterns : Pattern.t list) : string =
-      List.map Pattern.to_string patterns
-      |> String.concat " | "
-      |> Printf.sprintf "Bad match: %s is not in pattern list %s" (any_to_string v)
+      let cases = String.concat " | " (List.map Pattern.to_string patterns) in
+      Printf.sprintf "Bad match: %s is not in pattern list %s"
+        (any_to_string v) cases
 
     let missing_label (v : any) (label : Record.Label.t) : string =
       Printf.sprintf "Missing label: %s does not have label %s"
@@ -357,39 +363,9 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       Printf.sprintf "Bad predicate: the refinement predicate %s is expected to be a boolean"
         (any_to_string v)
 
-    let bad_wrap s v t =
-      Printf.sprintf "Bad wrap: %s is not %s; tried to wrap with type %s"
-        s (any_to_string v) (to_string t)
-
     let wrap_bottom (v : any) : string =
       Printf.sprintf "Bad wrap: tried to wrap %s with type bottom"
         (any_to_string v)
-
-    let wrap_non_list (v : any) (tlist : tval) : string =
-      bad_wrap "a list" v tlist
-
-    let wrap_typeval_fun (t : tval) (tfun : tval) : string =
-      bad_wrap "a function" (Any t) tfun
-
-    let wrap_missing_label (v : any) (label : Record.Label.t) : string =
-      Printf.sprintf "Bad wrap: Missing label: %s does not have label %s"
-        (any_to_string v) (Record.Label.to_string label)
-
-    let wrap_non_record (v : any) (t : tval) : string =
-      bad_wrap "a record" v t
-
-    let wrap_non_module (v : any) (t : tval) : string =
-      bad_wrap "a module" v t
-
-    let wrap_missing_constructor (v : any) (t : tval) : string =
-      Printf.sprintf "Bad wrap: Missing constructor: %s is not a constructor in type %s"
-        (any_to_string v) (to_string t)
-
-    let wrap_non_variant (v : any) (t : tval) : string =
-      bad_wrap "a variant" v t
-
-    let wrap_non_tuple (v : any) (t : tval) : string =
-      bad_wrap "a tuple" v t
 
     let shape_mismatch (v1 : any) (v2 : any) : string =
       Printf.sprintf "Bad intensional equality: %s and %s are not of the same shape."
@@ -429,7 +405,8 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       It's expected that this computation is monadic, so we must pass in
       the monad via a functor.
     *)
-    let matches (type a) (pat : Pattern.t) (v : a t) ~(resolve_lazy : lazy_cell -> any m) : Match_result.t m =
+    let matches (type a) (pat : Pattern.t) (v : a t)
+        ~(resolve_lazy : lazy_cell -> any m) : Match_result.t m =
       let rec matches
         : type a. Pattern.t -> a t -> Match_result.t m
         = fun p v ->
@@ -489,7 +466,8 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       in
       matches pat v
 
-    let match_any (pat : Pattern.t) (Any v : any) ~(resolve_lazy : lazy_cell -> any m) : Match_result.t m =
+    let match_any (pat : Pattern.t) (Any v : any)
+        ~(resolve_lazy : lazy_cell -> any m) : Match_result.t m =
       matches pat v ~resolve_lazy
   end
 end
