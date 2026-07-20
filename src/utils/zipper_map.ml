@@ -90,8 +90,12 @@ module Make (Key : Map.OrderedType) = struct
   *)
   let find_opt key x =
     let left, v_opt, right = align ~key x.left x.right in
-    x.left <- left;
-    x.right <- right;
+    if not (x.left == left) then begin
+      (* Something shifted, so update the cursor. The right is unchanged if and
+        only if the left is unchanged, so checking the left is sufficient. *)
+      x.left <- left;
+      x.right <- right
+    end;
     v_opt
 
   (*
