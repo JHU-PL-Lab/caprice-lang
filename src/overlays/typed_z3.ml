@@ -84,24 +84,17 @@ module Make_of_context (C : CONTEXT) : Solve.SOLVABLE = struct
   let () = set_timeout (Mtime.Span.(100 * ms))
 
   let unbox_int_expr e =
-    if Z3.Expr.is_numeral e
-    then
-      Z3.Arithmetic.Integer.get_big_int e
-      |> Big_int_Z.int_of_big_int
-      |> Option.some
-    else None
+    Z3.Arithmetic.Integer.get_big_int e
+    |> Big_int_Z.int_of_big_int
 
   let unbox_bool_expr e =
-    if Z3.Boolean.is_bool e
-    then
-      match Z3.Boolean.get_bool_value e with
-      | L_FALSE -> Some false
-      | L_TRUE -> Some true
-      | L_UNDEF -> failwith "Invariant failure: undefined bool."
-   else None
+    match Z3.Boolean.get_bool_value e with
+    | L_FALSE -> false
+    | L_TRUE -> true
+    | L_UNDEF -> invalid_arg "Cannot unboxed bool from non-bool Z3 expression"
 
   let a_of_expr z3_model expr unbox_expr =
-    Option.bind (Z3.Model.get_const_interp_e z3_model expr) unbox_expr
+    Option.map unbox_expr (Z3.Model.get_const_interp_e z3_model expr)
 
   let solve (e : (bool, 'k) t) : 'k Solution.t =
     if Z3.Expr.equal e (const_bool false) then
