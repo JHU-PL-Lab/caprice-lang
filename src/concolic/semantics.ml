@@ -74,7 +74,10 @@ let assert_inputs_allowed : 'env. (unit, 'env) m =
 
 let modify_stem f =
   let* step in
-  modify (fun (s : State.t) -> { s with stem = f step s.stem })
+  modify (fun (s : State.t) ->
+    let stem = f step s.stem in
+    if stem == s.stem then s else { s with stem }
+  )
 
 let cons_to_stem kind =
   modify_stem (fun step stem ->
