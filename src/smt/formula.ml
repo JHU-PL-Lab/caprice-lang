@@ -244,18 +244,18 @@ let rec subst
       else
         binop op e1' e2'
 
+let rec symbols : type a. Utils.Uid.Set.t -> (a, 'k) t -> Utils.Uid.Set.t =
+  fun acc e ->
+    match e with
+    | Const_int _
+    | Const_bool _ -> acc
+    | Key I uid
+    | Key B uid -> Utils.Uid.Set.add uid acc
+    | Not e' -> symbols acc e'
+    | And e_ls -> List.fold_left symbols acc e_ls
+    | Binop (_, e1, e2) -> symbols (symbols acc e1) e2
+
 let symbols (type a) (e : (a, 'k) t) : Utils.Uid.Set.t =
-  let rec symbols : type a. Utils.Uid.Set.t -> (a, 'k) t -> Utils.Uid.Set.t =
-    fun acc e ->
-      match e with
-      | Const_int _
-      | Const_bool _ -> acc
-      | Key I uid
-      | Key B uid -> Utils.Uid.Set.add uid acc
-      | Not e' -> symbols acc e'
-      | And e_ls -> List.fold_left symbols acc e_ls
-      | Binop (_, e1, e2) -> symbols (symbols acc e1) e2
-  in
   symbols Utils.Uid.Set.empty e
 
 (*
@@ -276,8 +276,6 @@ let symbols (type a) (e : (a, 'k) t) : Utils.Uid.Set.t =
 *)
 let scc (formula : (bool, 'k) T.t) ~(wrt : (bool, 'k) t list) : (bool, 'k) T.t =
   if is_const formula then formula else (* easy short circuit *)
-  let formula_symbols = symbols formula in
-  let all_with_symbols = List.map (fun e -> (e, symbols e)) wrt in
   let rec collect acc_symbols acc_scc remaining =
     let acc_symbols, acc_scc, any_newly_connected, remaining =
       List.fold_left (fun (acc_symbols, acc_scc, any_newly_connected, remaining) (e, e_symbols) ->
@@ -292,4 +290,6 @@ let scc (formula : (bool, 'k) T.t) ~(wrt : (bool, 'k) t list) : (bool, 'k) T.t =
     else
       acc_scc
   in
+  let formula_symbols = symbols formula in
+  let all_with_symbols = List.map (fun e -> (e, symbols e)) wrt in
   and_ @@ collect formula_symbols [ formula ] all_with_symbols

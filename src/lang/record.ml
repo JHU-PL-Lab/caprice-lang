@@ -34,7 +34,7 @@ module Parsing = struct
   let of_list pair_ls =
     let add_entry acc (k, v) =
       Label.Map.update k (function
-        | Some _ -> raise @@ Invalid_argument "Duplicate record entry while parsing."
+        | Some _ -> invalid_arg "Duplicate record entry while parsing."
         | None -> Some v
       ) acc
     in
