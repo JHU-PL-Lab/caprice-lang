@@ -1,49 +1,53 @@
 (*
-  A stem off of a target, represented as a list of path items in reverse order.
+  A stem off of a goal, represented as a list of path items in reverse order.
   Each path item is associated with the inputs used to get to that point.
 *)
 type t =
   { rev_stem : (Path_item.t * Input_env.t) list
   ; all_inputs : Input_env.t
-  ; target : Target.t (* stemming off of this *)
+  ; goal : Goal.t (* stemming off of this *)
   }
 
 let empty : t =
   { rev_stem = []
   ; all_inputs = Input_env.empty
-  ; target = Target.empty
+  ; goal = Goal.empty
   }
 
-let make target = { empty with target ; all_inputs = target.Target.i_env }
+let make goal = { empty with goal ; all_inputs = goal.Goal.assignments }
 
 (** [cons p_item t] puts [p_item] as the most recent item in [t] only if the
-  target has been passed. *)
+  goal has been passed. *)
 let cons (p_item : Path_item.t) (t : t) : t =
-  if Target.is_before t.target p_item.when_ then
+  if Goal.is_before t.goal p_item.when_ then
     { t with rev_stem = (p_item, t.all_inputs) :: t.rev_stem }
   else
     t
 
-(** [log kind key input t] logs the input only if target has been passed. *)
+(** [log kind key input t] logs the input only if the goal has been passed. *)
 let log kind key v t =
-  if Target.is_before t.target (Stepkey.step key) then
+  if Goal.is_before t.goal (Stepkey.step key) then
     { t with all_inputs = Input_env.add kind key v t.all_inputs }
   else
     t
 
-let path_inputs t = t.all_inputs
-
-let path_formulas (t : t) : bool Formula.t list =
-  List.fold_left (fun acc (item, _) ->
-    match item.Path_item.kind with
-    | Formula { cond ; do_flip = _ } -> cond :: acc
-    | Tag _ -> acc
-  ) t.target.all_formulas t.rev_stem
-
-let path_priority t =
-  List.fold_left (fun acc (item, _) ->
-    Priority.plus (Path_item.priority item) acc
-  ) t.target.priority t.rev_stem
+let contract t =
+  let path_formulas =
+    List.fold_left (fun acc (item, _) ->
+      match item.Path_item.kind with
+      | Formula { cond ; do_flip = _ } -> cond :: acc
+      | Tag _ -> acc
+    ) t.goal.constraints t.rev_stem
+  in
+  let path_priority =
+    List.fold_left (fun acc (item, _) ->
+      Priority.plus (Path_item.priority item) acc
+    ) t.goal.priority t.rev_stem
+  in
+  { Goal.constraints = path_formulas
+  ; assignments = t.all_inputs
+  ; step = Step.dummy
+  ; priority = path_priority }
 
 let forward_stem t =
   List.rev t.rev_stem

@@ -11,8 +11,8 @@ module State = struct
     ; cells : Utils.Cell.Map.t
     }
 
-  let make target =
-    { stem = Stem.make target
+  let make goal =
+    { stem = Stem.make goal
     ; runs = []
     ; cells = Utils.Cell.Map.empty
     }
@@ -107,7 +107,7 @@ let[@inline] log_input (kind : 'a Input.Kind.t) (a : 'a) : (unit, 'env) m =
 *)
 let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   (* Both pushing the tag and logging the input check (internally, inside the
-    stem) that the target has been passed, but the check is relatively cheap. *)
+    stem) that the goal has been passed, but the check is relatively cheap. *)
   let* () = push_tag_to_path ~alternatives:[] tag in
   log_input KTag tag
 
@@ -138,7 +138,7 @@ let read_input (kind : 'a Input.Kind.t) : ('a option, 'env) m =
   let* () = assert_inputs_allowed in
   let* step in
   let* { State.stem ; _ } = get in
-  return (Input_env.find kind (Stepkey step) stem.target.i_env)
+  return (Input_env.find kind (Stepkey step) stem.goal.assignments)
 
 (**
   [read_and_log_input kind input_env ~default] is an input from [input_env]
@@ -161,30 +161,26 @@ let read_and_log_input (kind : 'a Input.Kind.t) ~(default : 'a) : ('a, 'env) m =
     return default
 
 (**
-  [target_to_here] is a target representing the path to the current program
-    point. It is trivial to solve because its solution is the logged input
-    environment. The step of the target is a dummy because everything after
-    here is necessarily not known to the target, so anything pushed to the path
-    (as long as steps are increasing) with this target will always get put on
-    the stem; the target knows nothing.
+  [reset_goal] makes the goal in the state this exact point in the current
+  program execution. The step of the goal is a dummy because everything after
+  here is necessarily not known to the goal. Therefore, anything pushed to the
+  path with this goal will always be put on the stem.
+
+  Logs all the work done already as a run so that future work can stem off of
+  this new goal.
 
   The implementation is hand-rolled because of the value restriction.
 
-  Invariant: this should only be sequenced when the old target has been
-    reached. It is asserted that this invariant holds.
+  Invariant: this should only be sequenced when the old goal has been reached.
+  It is asserted that this invariant holds.
 *)
-let reset_target : 'env. (unit, 'env) m =
+let reset_goal : 'env. (unit, 'env) m =
   { run = fun ~reject:_ ~accept state step _ _ ->
     let stem = state.stem in
-    assert (Target.is_before stem.target step);
-    let target =
-      Target.make Formula.trivial (Stem.path_formulas stem)
-        (Stem.path_inputs stem) ~priority:(Stem.path_priority stem)
-        ~when_:Step.dummy
-    in
+    assert (Goal.is_before stem.goal step);
     accept ()
       { state with
-        stem = Stem.make target
+        stem = Stem.make (Stem.contract stem)
       ; runs = { stem ; answer = Exhausted } :: state.runs
       } step
   }
@@ -199,9 +195,8 @@ let reset_target : 'env. (unit, 'env) m =
     so that the effect is handled.
 *)
 let fork (forked_m : 'a. ('a, 'env) m) : (unit, 'env) m =
-  let* ctx = read_ctx in
-  let* () = reset_target in
-  fork forked_m ctx
+  let* () = reset_goal in
+  fork forked_m
     ~setup_state:Fun.id
     ~restore_state:
       (fun e ~og ~forked_state ->
@@ -270,11 +265,11 @@ let local_mode (mode : Funtype.mode) (x : ('a, 'env) m) : ('a, 'env) m =
   | Det -> disallow_inputs x
 
 (**
-  [run x target] runs [x] with [target] as the context, beginning with
-    empty state and environment.
+  [run x goal] runs [x] towards the [goal], beginning with empty state and
+  environment. Uses the input environment from [goal].
 *)
-let run (x : ('a, Val.Env.t) m) (target : Target.t) : Eval_result.t * State.t =
-  let state = State.make target in
+let run (x : ('a, Val.Env.t) m) (goal : Goal.t) : Eval_result.t * State.t =
+  let state = State.make goal in
   match run x state Env.empty Allow_inputs with
   | Ok _, state -> Done, state
   | Error e, state -> e, state

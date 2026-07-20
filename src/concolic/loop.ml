@@ -32,15 +32,14 @@ let adjacent_targets ~(max_tree_depth : int) (stem : Stem.t)
         let ret_targets, ~is_pruned = make priority acc_formulas tl in
         List.rev_append new_targets ret_targets, ~is_pruned
   in
-  let target = stem.target in
-  make (Target.priority target) target.all_formulas (Stem.forward_stem stem)
+  make (Goal.priority stem.goal) stem.goal.constraints (Stem.forward_stem stem)
 
 let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) :
   [ `Quit of Answer.t | `Cont of Target.t list * Answer.t ] =
   let rec collect acc_targets acc_answer = function
     | [] -> `Cont (acc_targets, acc_answer)
     | { Logged_run.answer ; _ } :: _ when Answer.is_error answer ->
-      `Quit answer (* an error is the goal, and we found it! *)
+      `Quit answer (* an error is the objective, and we found it! *)
     | { answer ; stem } :: tl ->
       let new_targets, ~is_pruned = adjacent_targets stem ~max_tree_depth in
       let targets = List.rev_append new_targets acc_targets in
@@ -73,12 +72,12 @@ module Make (Y : sig val yield : unit -> unit end) = struct
       (* solve and run the target, or continue exploring if unsat *)
       and handle_target target tq =
         match solve target.target_formula with
-        | Sat model -> handle_model target tq model
+        | Sat model -> handle_goal tq (Goal.of_solved_target target model)
         | Unknown -> Answer.min Answer.Unknown (explore tq)
         | Unsat -> explore tq
 
-      (* evaluate with the model, then continue exploring *)
-      and handle_model target tq model =
+      (* evaluate towards the goal, then continue exploring *)
+      and handle_goal tq goal =
         let run_num = Utils.Counter.next run_count in
         let default_int, default_bool =
           if run_num = 0 then
@@ -86,8 +85,7 @@ module Make (Y : sig val yield : unit -> unit end) = struct
           else
             (fun () -> Random.int_in_range ~min:(-10) ~max:10), Random.bool
         in
-        let i_env = Input_env.extend target.i_env ~with_:(Input_env.of_model model) in
-        let runs = eval { target with i_env } ~default_int ~default_bool in
+        let runs = eval goal ~default_int ~default_bool in
         match collect_logged_runs runs ~max_tree_depth:options.max_tree_depth with
         | `Quit answer ->
           answer

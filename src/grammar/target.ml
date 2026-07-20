@@ -30,7 +30,7 @@ let is_before t step =
     environment that satisfies the made target.
 
     This "connected component" optimization originates with EXE. See the comment
-    in Formula.BSet.scc for an explanation.
+    on Formula.scc for an explanation.
 
     The made target gets a brand new unique identifier (with respect to any
     other target made in this way), which is the sole basis of equality and

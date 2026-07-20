@@ -17,17 +17,12 @@ open Grammar.Val.Error_messages
   [eval] returns the list of runs (evaluation) of the program.  There are
   multiple runs because it sometimes forks the state to symbolically evaluate.
 
-  The [target] must contain an input environment that directs evaluation to that
-  target. Note that when targets are returned, they contain only the input
-  environment until that point, and they must be updated to contain the solution
-  to their constraints before being used here.
-
   Every fork calls [Utils.Time.yield_to_timer] so that timeout can be
   noticed reasonably frequently. Hence this must be run within a handler.
 *)
 let eval
   (pgm : Ast.statement list)
-  (target : Target.t)
+  (goal : Goal.t)
   ~(max_step : Grammar.Step.t)
   ~(default_int : unit -> int)
   ~(default_bool : unit -> bool)
@@ -1237,6 +1232,6 @@ let eval
 
   in
 
-  let result, state = run (eval_statement_list pgm) target in
+  let result, state = run (eval_statement_list pgm) goal in
   let answer = Eval_result.to_answer result in
   { stem = state.stem ; answer } :: state.runs

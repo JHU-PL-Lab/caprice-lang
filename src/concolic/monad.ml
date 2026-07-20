@@ -144,12 +144,12 @@ let step : (Step.t, 'x) t =
       accept step state step
   }
 
-let[@inline] fork (m : 'a. ('a, < err : 'err ; ctx : 'ctx ; state : 'state ; .. > as 'x) t)
-  (fork_ctx : 'ctx) (k : 'err -> ('a, 'x) t) ~(setup_state : 'state -> 'state)
+let[@inline] fork (m : 'a. ('a, < err : 'err ; state : 'state ; .. > as 'x) t)
+  (k : 'err -> ('a, 'x) t) ~(setup_state : 'state -> 'state)
   ~(restore_state : 'err -> og:'state -> forked_state:'state -> 'state)
   : ('a, 'x) t =
   { run = fun ~reject ~accept state step env ctx ->
-    m.run (setup_state state) step env fork_ctx
+    m.run (setup_state state) step env ctx
       ~accept:Utils.Empty.absurd
       ~reject:(fun e forked_state ->
         (* uses original step count when resuming, not step count after fork *)
