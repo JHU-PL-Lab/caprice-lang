@@ -10,11 +10,13 @@ type test_expect =
 let parse_expect = function
   | "ill-typed" -> Ill_typed
   | "no-error" -> No_error
-  | "exhausted" | _ -> Exhausted
+  | "exhausted" -> Exhausted
+  | s -> invalid_arg (Printf.sprintf "CTL: unexpected typing \"%s\"" s)
 
 let parse_speed = function
   | "slow" -> `Slow
-  | "fast" | _ -> `Quick
+  | "fast" -> `Quick
+  | s -> invalid_arg (Printf.sprintf "CTL: unexpected speed \"%s\"" s)
 
 let interp_env (env : Environment.t) (ast : Ctl_ast.t) : Environment.t * testkind =
   let testkind = ref Typecheck in
@@ -37,12 +39,12 @@ let interp_env (env : Environment.t) (ast : Ctl_ast.t) : Environment.t * testkin
   let e = interp env ast in
   e, !testkind
 
-let get_var env var default =
-  Ident.Map.find_opt var env
-  |> Option.value ~default
+let get_var ?default env var =
+  try Ident.Map.find var env with
+  | Not_found -> Option.get default
 
 let options_of_env (env : Environment.t) : Concolic.Options.t =
-  let flags_str = get_var env flags "" in
+  let flags_str = get_var env flags ~default:"" in
   let argv = String.split_on_char ' ' flags_str |> Array.of_list in
   let cmd = Cmdliner.Cmd.v (Cmdliner.Cmd.info "parseflags") Concolic.Options.of_argv in
   match Cmdliner.Cmd.eval_value ~argv cmd with
@@ -52,7 +54,7 @@ let options_of_env (env : Environment.t) : Concolic.Options.t =
   | Error _ -> failwith "parse error"
 
 let compute_typecheck_test filename env =
-  let expect = parse_expect (get_var env typing exhausted_s) in
+  let expect = parse_expect (get_var env typing) in
   let options = options_of_env env in
   let pgm = Parsing.Parse.parse_file filename in
   let answer = Concolic.Loop.begin_ceval pgm ~options in
@@ -63,7 +65,7 @@ let compute_typecheck_test filename env =
   | _ -> false
 
 let positions_test filename env =
-  let expected = Position_checks.parse_positions (get_var env positions "") in
+  let expected = Position_checks.parse_positions (get_var env positions) in
   let actual =
     filename
     |> Parsing.Parse.Positioned.parse_file
@@ -80,7 +82,7 @@ let make_test (filename : string) : unit Alcotest.test_case option =
   | None -> None
   | Some ctl_script ->
     let env, testkind = interp_env Environment.default ctl_script in
-    let speed_level = parse_speed (get_var env speed fast_s) in
+    let speed_level = parse_speed (get_var env speed ~default:fast_s) in
     Option.some @@
     Alcotest.test_case filename speed_level (fun () ->
       match testkind with
