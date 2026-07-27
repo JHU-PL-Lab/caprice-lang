@@ -59,7 +59,7 @@ module Make (Y : sig val yield : unit -> unit end) = struct
     let run do_splay =
       let eval =
         Eval.eval pgm ~max_step:options.max_step ~do_splay
-          ~do_wrap:options.do_wrap
+          ~do_wrap:options.do_wrap ~do_fork:options.do_fork
       in
       (* explore the target queue *)
       let rec explore tq =

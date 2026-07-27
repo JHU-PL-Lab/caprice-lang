@@ -28,6 +28,7 @@ let eval
   ~(default_bool : unit -> bool)
   ~(do_splay : bool)
   ~(do_wrap : bool)
+  ~(do_fork : bool)
   : Logged_run.t list
   =
   (*
@@ -38,20 +39,35 @@ let eval
   *)
   let fork_on_left (type a env) ~(left : 'a. ('a, env) m) ~(right : (a, env) m) ~reason =
     let* () = incr_step ~max_step in
-    let run_left =
-      let* () = push_and_log_tag @@ Left reason in
-      left
-    in
-    let run_right =
-      let* () = push_and_log_tag @@ Right reason in
-      right
-    in
-    let* l_opt = allow_inputs (read_input KTag) in
-    match l_opt with
-    | Some Left reason' when reason = reason' -> run_left
-    | Some Right reason' when reason = reason' -> run_right
-    | Some _ -> raise bad_input_env
-    | None -> let* () = fork run_left in run_right
+    if do_fork then
+      let run_left =
+        let* () = push_and_log_tag @@ Left reason in
+        left
+      in
+      let run_right =
+        let* () = push_and_log_tag @@ Right reason in
+        right
+      in
+      let* l_opt = allow_inputs (read_input KTag) in
+      match l_opt with
+      | Some Left reason' when reason = reason' -> run_left
+      | Some Right reason' when reason = reason' -> run_right
+      | Some _ -> raise bad_input_env
+      | None -> let* () = fork run_left in run_right
+    else
+      let run_left =
+        let* () = push_tag_to_path (Left reason) ~alternatives:[Right reason] in
+        left
+      in
+      let run_right =
+        let* () = push_tag_to_path (Right reason) ~alternatives:[Left reason] in
+        right
+      in
+      let* lbl = allow_inputs (read_and_log_input KTag ~default:(Left reason)) in
+      match lbl with
+      | Left reason' when reason = reason' -> run_left
+      | Right reason' when reason = reason' -> run_right
+      | _ -> raise bad_input_env
   in
 
   (*
@@ -756,24 +772,41 @@ let eval
       if Record.Label.Set.subset t_labels v_labels then
         (* incr step because about to read an input *)
         let* () = incr_step ~max_step in
-        let* l_opt = allow_inputs (read_input KTag) in
-        let push_and_check label =
-          let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
-          check_label label
-        in
-        match l_opt with
-        | Some Label (id, Check) -> push_and_check (Record.Label.RecordLabel id)
-        | Some _ -> raise bad_input_env
-        | None ->
-          (* is in exploration mode, so we want to check every label *)
-          let rec go enum =
-            match Record.Label.Set.Enum.head_opt enum with
-            | Some label ->
-              let* () = fork (push_and_check label) in
-              go (Record.Label.Set.Enum.tail enum)
-            | None -> escape Eval_result.Confirmation
+        if do_fork then
+          let* l_opt = allow_inputs (read_input KTag) in
+          let push_and_check label =
+            let* () = push_and_log_tag (Grammar.Tag.of_record_label label) in
+            check_label label
           in
-          go (Record.Label.Set.Enum.enum t_labels)
+          match l_opt with
+          | Some Label (id, Check) -> push_and_check (Record.Label.RecordLabel id)
+          | Some _ -> raise bad_input_env
+          | None ->
+            (* is in exploration mode, so we want to check every label *)
+            let rec go enum =
+              match Record.Label.Set.Enum.head_opt enum with
+              | Some label ->
+                let* () = fork (push_and_check label) in
+                go (Record.Label.Set.Enum.tail enum)
+              | None -> escape Eval_result.Confirmation
+            in
+            go (Record.Label.Set.Enum.enum t_labels)
+        else
+          let* default =
+            match Record.Label.Set.choose_opt t_labels with
+            | None -> escape Confirmation
+            | Some l -> return (Grammar.Tag.of_record_label l)
+          in
+          let* lbl = allow_inputs (read_and_log_input KTag ~default) in
+          match lbl with
+          | Label (id, Check) ->
+            let alternatives =
+              Record.Label.Set.remove (RecordLabel id) t_labels
+              |> Record.Label.Set.list_map Grammar.Tag.of_record_label
+            in
+            let* () = push_tag_to_path lbl ~alternatives in
+            check_label (RecordLabel id)
+          | _ -> raise bad_input_env
       else
         refute
 
