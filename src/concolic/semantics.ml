@@ -112,13 +112,17 @@ let push_and_log_tag (tag : Tag.t) : (unit, 'env) m =
   log_input KTag tag
 
 (**
-  [push_formula_to_path ?allow_flip formula] pushes the formula to the path stem
-    as a true formula, such that any evaluation following the same path again must
-    satifisfy the formula. By default, a target will be made from the negation
-    of the formula, unless [allow_flip] is false.
+  [push_formula_to_path ?allow_flip ~max_step formula] pushes the formula to the
+  path stem as a true formula, such that any evaluation following the same path
+  again must satifisfy the formula. By default, a target will be made from the
+  negation of the formula, unless [allow_flip] is false.
+
+  Increments the step beforehand to ensure this target comes at a unique time,
+  so the max step is a parameter.
 *)
-let push_formula_to_path ?(allow_flip : bool = true)
+let push_formula_to_path ?(allow_flip : bool = true) ~(max_step : Step.t)
   (formula : (bool, Stepkey.t) Smt.Formula.t) : (unit, 'env) m =
+  let* () = incr_step ~max_step in
   if Smt.Formula.is_const formula then
     return ()
   else

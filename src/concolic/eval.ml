@@ -182,7 +182,9 @@ let eval
       begin match v with
       | Any VBool (b, s) ->
         let cont = if b then then_ else else_ in
-        let* () = push_formula_to_path (if b then s else Smt.Formula.not_ s) in
+        let* () =
+          push_formula_to_path ~max_step (if b then s else Smt.Formula.not_ s)
+        in
         eval cont
       | _ -> mismatch @@ if_non_bool v
       end
@@ -191,10 +193,10 @@ let eval
       begin match v with
       | Any VBool (b, s) ->
         if b then
-          let* () = push_formula_to_path s in
+          let* () = push_formula_to_path ~max_step s in
           return_any VUnit
         else
-          let* () = push_formula_to_path (Smt.Formula.not_ s) in
+          let* () = push_formula_to_path ~max_step (Smt.Formula.not_ s) in
           escape Assert_false
       | _ -> mismatch @@ assert_non_bool v
       end
@@ -203,10 +205,10 @@ let eval
       begin match v with
       | Any VBool (b, s) ->
         if b then
-          let* () = push_formula_to_path ~allow_flip:false s in
+          let* () = push_formula_to_path ~max_step ~allow_flip:false s in
           return_any VUnit
         else
-          let* () = push_formula_to_path (Smt.Formula.not_ s) in
+          let* () = push_formula_to_path ~max_step (Smt.Formula.not_ s) in
           escape Vanish
       | _ -> mismatch @@ assume_non_bool v
       end
@@ -265,11 +267,17 @@ let eval
       | Any VBool (b, s) when (not b && op = BAnd) || (b && op = BOr) ->
         (* Cases here are: false AND rhs, true OR rhs *)
         (* The short-circuiting is effectively a branch, so log the formula *)
-        let* () = push_formula_to_path (Smt.Formula.binop Equal s (Smt.Formula.const_bool b)) in
+        let* () =
+          push_formula_to_path ~max_step
+            (Smt.Formula.binop Equal s (Smt.Formula.const_bool b))
+        in
         return vleft
       | Any VBool (b, s) ->
         (* Need to evaluate RHS here *)
-        let* () = push_formula_to_path (Smt.Formula.binop Equal s (Smt.Formula.const_bool b)) in
+        let* () =
+          push_formula_to_path ~max_step
+            (Smt.Formula.binop Equal s (Smt.Formula.const_bool b))
+        in
         let* vright = force_eval right in
         begin match vright with
         | Any VBool _ -> return vright
@@ -298,10 +306,16 @@ let eval
       | BGreaterThan, Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 > n2)) e1 e2 Greater_than
       | BGeq        , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 >= n2)) e1 e2 Greater_than_eq
       | BDivide, Any VInt (n1, e1), Any VInt (n2, e2) when n2 <> 0 ->
-        let* () = push_formula_to_path (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
+        let* () =
+          push_formula_to_path ~max_step
+            (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0))
+        in
         k (v_int (n1 / n2)) e1 e2 Divide
       | BModulus, Any VInt (n1, e1), Any VInt (n2, e2) when n2 <> 0 ->
-        let* () = push_formula_to_path (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0)) in
+        let* () =
+          push_formula_to_path ~max_step
+            (Smt.Formula.binop Not_equal e2 (Smt.Formula.const_int 0))
+        in
         k (v_int (n1 mod n2)) e1 e2 Modulus
       | BTimes, v1, v2 ->
         (* Make tuple if v1 and v2 are types. Note that integer muliplication is handled above. *)
@@ -355,13 +369,12 @@ let eval
           let* () = set_cell cell ((v_arg, genned) :: mappings) in
           return genned
         | (input, output) :: tl ->
-          let* () = incr_step ~max_step in
           let (b, s) = intensional_equal input v_arg in
           if b then
-            let* () = push_formula_to_path s in
+            let* () = push_formula_to_path ~max_step s in
             return output
           else
-            let* () = push_formula_to_path (Formula.not_ s) in
+            let* () = push_formula_to_path ~max_step (Formula.not_ s) in
             find_output tl
       in
       find_output mappings
@@ -691,10 +704,12 @@ let eval
           match p with
           | Any VBool (b, s) ->
             if b then
-              let* () = push_formula_to_path s in
+              let* () = push_formula_to_path ~max_step s in
               confirm
             else
-              let* () = push_formula_to_path ~allow_flip:false (Smt.Formula.not_ s) in
+              let* () =
+                push_formula_to_path ~max_step ~allow_flip:false (Smt.Formula.not_ s)
+              in
               refute
           | _ -> mismatch @@ non_bool_predicate p
         )
@@ -720,10 +735,12 @@ let eval
           (* For non-type equality, use intensional equality *)
           let (b, s) = Val.intensional_equal v_single v in
           if b then
-            let* () = push_formula_to_path s in
+            let* () = push_formula_to_path ~max_step s in
             confirm
           else
-            let* () = push_formula_to_path ~allow_flip:false (Formula.not_ s) in
+            let* () =
+              push_formula_to_path ~max_step ~allow_flip:false (Formula.not_ s)
+            in
             refute
       )
 
@@ -864,12 +881,13 @@ let eval
       let* v = gen tau in
       let* p = local' (Env.set var v env) (eval captured) in
       begin match p with
-      | Any VBool (true, s) ->
-        let* () = push_formula_to_path ~allow_flip:false s in
-        return v
-      | Any VBool (false, s) ->
-        let* () = push_formula_to_path (Smt.Formula.not_ s) in
-        escape Vanish
+      | Any VBool (b, s) ->
+        if b then
+          let* () = push_formula_to_path ~max_step ~allow_flip:false s in
+          return v
+        else
+          let* () = push_formula_to_path ~max_step (Smt.Formula.not_ s) in
+          escape Vanish
       | _ -> mismatch @@ non_bool_predicate p
       end
     | VTypeMu { var ; closure } ->
@@ -913,11 +931,11 @@ let eval
   and force_gen_list
     : 'env. Val.tval -> (Val.any, 'env) m
     = fun body ->
+    let* () = incr_step ~max_step in
     let* l = read_and_log_input KTag ~default:(Left GenList) in
     match l with
     | Left GenList ->
       let* () = push_tag_to_path (Left GenList) ~alternatives:[ Right GenList ] in
-      let* () = incr_step ~max_step in (* doesn't call gen, so need to increment step manually *)
       return_any VEmptyList
     | Right GenList ->
       let* () = push_tag_to_path (Right GenList) ~alternatives:[ Left GenList ] in
