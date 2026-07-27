@@ -10,6 +10,7 @@ type t =
   ; global_timeout : Mtime.Span.t
   ; splay          : splay
   ; do_wrap        : bool
+  ; do_fork        : bool
   ; is_random      : bool
   }
 
@@ -19,6 +20,7 @@ let default : t =
   ; global_timeout = Mtime.Span.(10 * s)
   ; splay          = Fallback
   ; do_wrap        = true
+  ; do_fork        = true
   ; is_random      = false
   }
 
@@ -40,8 +42,11 @@ let of_argv =
   and+ do_wrap =
     value & opt (enum (["yes", true; "no", false])) default.do_wrap
     & info ["w"; "wrap"] ~doc:"Wrap flag: yes or no. Default is yes."
+  and+ do_fork =
+    value & opt (enum (["yes", true; "no", false])) default.do_fork
+    & info ["f"; "fork"] ~doc:"Fork flag: yes or no. Default is yes."
   and+ is_random =
     value & flag & info ["r"; "random"] ~doc:"Randomize"
   in
-  { max_tree_depth ; max_step ; global_timeout ; splay ; do_wrap ; is_random }
+  { max_tree_depth ; max_step ; global_timeout ; splay ; do_wrap ; do_fork ; is_random }
 
