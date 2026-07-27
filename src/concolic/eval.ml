@@ -355,6 +355,7 @@ let eval
           let* () = set_cell cell ((v_arg, genned) :: mappings) in
           return genned
         | (input, output) :: tl ->
+          let* () = incr_step ~max_step in
           let (b, s) = intensional_equal input v_arg in
           if b then
             let* () = push_formula_to_path s in
