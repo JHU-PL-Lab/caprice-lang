@@ -25,7 +25,7 @@ include Monad
 
 type ('a, 'env) m = ('a, < err : Eval_result.t ; env : 'env ; state : State.t ; ctx : det_ctx >) t
 
-module Matches = Val.Make_match (struct
+module Matching = Val.Match.Make (struct
   type nonrec 'a m = ('a, Val.Env.t) m
   include (Monad : Utils.Types.MONAD with type 'a m := 'a m)
 end)

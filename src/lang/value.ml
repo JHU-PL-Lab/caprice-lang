@@ -380,95 +380,90 @@ module Make (Atom_cell : Utils.Types.P1) = struct
         (to_string v_func) (any_to_string v_arg)
   end
 
-  module Match_result = struct
-    type t =
+  module Match = struct
+    type res =
       | Match of env
       | No_match
       | Failure of string
 
     let match_ = Match Env.empty
-  end
 
-  module Make_match (Monad : Utils.Types.MONAD) = struct
-    open Monad
+    module Make (Monad : Utils.Types.MONAD) = struct
+      open Monad
 
-    let ( let* ) = Monad.bind
+      let ( let* ) = Monad.bind
 
-    let bind_res (m : Match_result.t m) (f : Env.t -> Match_result.t m) : Match_result.t m =
-      let* m in
-      match m with
-      | (No_match | Failure _) as r -> return r
-      | Match env -> f env
+      let ( let** ) (m : res m) (f : Env.t -> res m) : res m =
+        let* m in
+        match m with
+        | (No_match | Failure _) as r -> return r
+        | Match env -> f env
 
-    (*
-      In case we match on a symbol, we must resolve the symbol to a value.
-      It's expected that this computation is monadic, so we must pass in
-      the monad via a functor.
-    *)
-    let matches (type a) (pat : Pattern.t) (v : a t)
-        ~(resolve_lazy : lazy_cell -> any m) : Match_result.t m =
-      let rec matches
-        : type a. Pattern.t -> a t -> Match_result.t m
-        = fun p v ->
-        let open Match_result in
-        match p, v with
-        | PAny, _ ->
-          return match_
-        | PVariable id, v ->
-          return @@ Match (Env.singleton id (Any v))
-        | PPatternAs (pat, id), v ->
-          bind_res (matches pat v) (fun env ->
+      (*
+        In case we match on a symbol, we must resolve the symbol to a value.
+        It's expected that this computation is monadic, so we must pass in
+        the monad via a functor.
+      *)
+      let matches (type a) (pat : Pattern.t) (v : a t)
+          ~(resolve_lazy : lazy_cell -> any m) : res m =
+        let rec matches
+          : type a. Pattern.t -> a t -> res m
+          = fun p v ->
+          match p, v with
+          | PAny, _ ->
+            return match_
+          | PVariable id, v ->
+            return @@ Match (Env.singleton id (Any v))
+          | PPatternAs (pat, id), v ->
+            let** env = matches pat v in
             return @@ Match (Env.set id (Any v) env)
-          )
-        | PPatternOr p_ls, v ->
-          let rec try_patterns = function
-            | [] -> return No_match
-            | pat :: rest ->
-              let* result = matches pat v in
-              match result with
-              | No_match -> try_patterns rest
-              | _ -> return result
-          in
-          try_patterns p_ls
-        | _, VLazy vlazy ->
-          let* (Any v) = resolve_lazy vlazy in
-          matches p v
-        | p, VGenPoly _ ->
-          (* generated polymorphic values cannot be inspected *)
-          return @@ Failure
-            (Printf.sprintf "Bad match: matching polymorphic value with pattern %s"
-              (Pattern.to_string p))
-        | PVariant { label = pattern_label ; payload = payload_pattern },
-          VVariant { label = subject_label ; payload = Any v } ->
-            if Variant.Label.equal pattern_label subject_label
-            then matches payload_pattern v
-            else return No_match
-        | PTuple (p1, p2), VTuple (Any v1, Any v2) ->
-          match_two (p1, v1) (p2, v2)
-        | PUnit, VUnit ->
-          return match_
-        | PEmptyList, VEmptyList ->
-          return match_
-        | PDestructList (p1, p2), VListCons { hd = Any v1 ; tl = v2 } ->
-          match_two (p1, v1) (p2, v2)
-        | _ ->
-          return No_match
+          | PPatternOr p_ls, v ->
+            let rec try_patterns = function
+              | [] -> return No_match
+              | pat :: rest ->
+                let* result = matches pat v in
+                match result with
+                | No_match -> try_patterns rest
+                | _ -> return result
+            in
+            try_patterns p_ls
+          | _, VLazy vlazy ->
+            let* (Any v) = resolve_lazy vlazy in
+            matches p v
+          | p, VGenPoly _ ->
+            (* generated polymorphic values cannot be inspected *)
+            return @@ Failure
+              (Printf.sprintf "Bad match: matching polymorphic value with pattern %s"
+                (Pattern.to_string p))
+          | PVariant { label = pattern_label ; payload = payload_pattern },
+            VVariant { label = subject_label ; payload = Any v } ->
+              if Variant.Label.equal pattern_label subject_label
+              then matches payload_pattern v
+              else return No_match
+          | PTuple (p1, p2), VTuple (Any v1, Any v2) ->
+            match_two (p1, v1) (p2, v2)
+          | PUnit, VUnit ->
+            return match_
+          | PEmptyList, VEmptyList ->
+            return match_
+          | PDestructList (p1, p2), VListCons { hd = Any v1 ; tl = v2 } ->
+            match_two (p1, v1) (p2, v2)
+          | _ ->
+            return No_match
 
-      and match_two
-        : type a b. Pattern.t * a t -> Pattern.t * b t -> Match_result.t m
-        = fun (p1, v1) (p2, v2) ->
-        let open Match_result in
-        bind_res (matches p1 v1) (fun env ->
-          bind_res (matches p2 v2) (fun env' ->
-            return @@ Match (Env.extend env ~with_:env')
-          )
-        )
-      in
-      matches pat v
+        and match_two
+          : type a b. Pattern.t * a t -> Pattern.t * b t -> res m
+          = fun (p1, v1) (p2, v2) ->
+          let** env = matches p1 v1 in
+          let** env' = matches p2 v2 in
+          return @@ Match (Env.extend env ~with_:env')
+        in
+        matches pat v
 
-    let match_any (pat : Pattern.t) (Any v : any)
-        ~(resolve_lazy : lazy_cell -> any m) : Match_result.t m =
-      matches pat v ~resolve_lazy
+      let match_any (pat : Pattern.t) (Any v : any)
+          ~(resolve_lazy : lazy_cell -> any m) : res m =
+        matches pat v ~resolve_lazy
+    end
   end
 end
 

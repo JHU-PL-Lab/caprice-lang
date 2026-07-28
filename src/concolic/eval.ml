@@ -114,7 +114,7 @@ let eval
       let rec find_match = function
         | [] -> mismatch @@ missing_pattern v (List.map fst patterns)
         | (pat, body) :: tl ->
-          let* res = Matches.match_any pat v ~resolve_lazy in
+          let* res = Matching.match_any pat v ~resolve_lazy in
           begin match res with
           | Match env' -> local (fun env -> Env.extend env ~with_:env') (eval body)
           | No_match -> find_match tl
