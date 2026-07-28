@@ -224,19 +224,19 @@ let eval
         Record.Label.Map.mapM (module Semantics) eval_type t_record_body
       in
       return_any (VTypeRecord record_body)
-    | ETypeFun { domain = None, tau ; codomain ; mode } ->
-      let* dom_t = eval_type tau in
+    | ETypeFun { domain = None, typ ; codomain ; mode } ->
+      let* dom_t = eval_type typ in
       let* cod_t = eval_type codomain in
       return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t ; mode })
-    | ETypeFun { domain = Some id, tau ; codomain ; mode } ->
-      let* dom_t = eval_type tau in
+    | ETypeFun { domain = Some id, typ ; codomain ; mode } ->
+      let* dom_t = eval_type typ in
       let* env = read in
       return_any (VTypeFun { domain = dom_t ; mode
         ; codomain = CodDependent (id, { captured = codomain ; env }) })
-    | ETypeRefine { var ; tau ; predicate } ->
-      let* tval = eval_type tau in
+    | ETypeRefine { var ; typ ; pred } ->
+      let* tval = eval_type typ in
       let* env = read in
-      return_any (VTypeRefine { var ; tau = tval ; predicate = { captured = predicate ; env }})
+      return_any (VTypeRefine { var ; typ = tval ; pred = { captured = pred ; env }})
     | ETypeMu { var ; body } ->
       let* env = read in
       return_any (VTypeMu { var ; closure = { captured = body ; env } })
@@ -621,17 +621,17 @@ let eval
         let t_labels = Record.Label.Set.of_list t_labels_ls in
         let v_labels = Record.label_set module_v in
         let check_label label =
-          let new_env, tau =
+          let new_env, typ =
             (* think about sharing this computation because rn it is redone on every fork *)
-            Utils.List_utils.fold_left_until (fun env (label', tau) ->
+            Utils.List_utils.fold_left_until (fun env (label', typ) ->
               if Record.Label.equal label' label
-              then `Stop (env, tau)
+              then `Stop (env, typ)
               else `Continue (
                 Env.set (Record.Label.to_ident label') (Record.Label.Map.find label' module_v) env
               )
             ) (fun _ -> raise @@ InvariantException "Label not found in module type") env captured
           in
-          let* t = local' new_env (eval_type tau) in
+          let* t = local' new_env (eval_type typ) in
           check (Record.Label.Map.find label module_v) t
         in
         check_struct check_label ~refute ~t_labels ~v_labels
@@ -695,10 +695,10 @@ let eval
           ~right:(check (Any tl) t)
       | _ -> refute
       end
-    | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
+    | VTypeRefine { var ; typ ; pred = { captured ; env } } ->
       (* Value is not directly used here, so we don't force it quite yet *)
       fork_on_left ~reason:CheckRefinementType
-        ~left:(check v tau)
+        ~left:(check v typ)
         ~right:(
           let* p = local' (Env.set var v env) (eval captured) in
           match p with
@@ -877,8 +877,8 @@ let eval
         return_any l
       else
         force_gen_list t
-    | VTypeRefine { var ; tau ; predicate = { captured ; env } } ->
-      let* v = gen tau in
+    | VTypeRefine { var ; typ ; pred = { captured ; env } } ->
+      let* v = gen typ in
       let* p = local' (Env.set var v env) (eval captured) in
       begin match p with
       | Any VBool (b, s) ->
@@ -906,9 +906,9 @@ let eval
     | VTypeModule { captured ; env } ->
       let rec fold_labels acc_m = function
         | [] -> acc_m
-        | (label, tau) :: tl ->
+        | (label, typ) :: tl ->
           let* acc = acc_m in
-          let* tval = eval_type tau in
+          let* tval = eval_type typ in
           let* v = gen tval in
           local (Env.set (Record.Label.to_ident label) v) (
             fold_labels (return @@ Record.Label.Map.add label v acc) tl
@@ -1048,11 +1048,11 @@ let eval
       | Any VModule v_body ->
         let rec fold_labels acc_m = function
           | [] -> acc_m
-          | (label, tau) :: tl ->
+          | (label, typ) :: tl ->
             let* acc = acc_m in
             begin match Record.Label.Map.find_opt label v_body with
             | Some v' ->
-              let* tval = eval_type tau in
+              let* tval = eval_type typ in
               let* v = wrap v' tval in
               local (Env.set (Record.Label.to_ident label) v) (
                 fold_labels (return @@ Record.Label.Map.add label v acc) tl
@@ -1098,8 +1098,8 @@ let eval
       | _ ->
         return v
       end
-    | VTypeRefine { var = _ ; tau ; predicate = _ } ->
-      wrap v tau
+    | VTypeRefine { var = _ ; typ ; pred = _ } ->
+      wrap v typ
 
   (*
     Wrap with FIFO queue of types, represented as a list.
@@ -1151,8 +1151,8 @@ let eval
       let* env = read in
       let v = to_any (VFunFix { fvar = name ; param ; closure = { captured = defn ; env } }) in
       return (name, v)
-    | SLet { name ; annot = AType { tau ; do_check } ; defn } ->
-      let* tval = eval_type tau in
+    | SLet { name ; annot = AType { typ ; do_check } ; defn } ->
+      let* tval = eval_type typ in
       let* v = eval defn in
       let wrapped_val =
         let* w = wrap v tval in
@@ -1164,8 +1164,8 @@ let eval
           ~right:wrapped_val
       else
         wrapped_val
-    | SLetRec { name ; annot = AType { tau ; do_check } ; param ; defn } ->
-      let* tval = eval_type tau in
+    | SLetRec { name ; annot = AType { typ ; do_check } ; param ; defn } ->
+      let* tval = eval_type typ in
       let* env = read in
       let* v =
         let* self =

@@ -40,7 +40,7 @@ type t =
 
 and annot =
   | ANone
-  | AType of { tau : t ; do_check : bool }
+  | AType of { typ : t ; do_check : bool }
 
 and statement =
   | SLet of { name : Ident.t ; annot : annot ; defn : t }

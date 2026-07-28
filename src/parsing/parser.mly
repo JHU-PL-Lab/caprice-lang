@@ -59,13 +59,13 @@ statement:
   | LET name=l_ident params=l_ident+ EQUALS body=expr
     { SLet { name ; annot = ANone ; defn = mk_curried_fun params body } }
   | LET name=l_ident tparams=typed_params mode=returns body_type=expr EQUALS body=expr
-    { SLet { name ; annot = AType { tau = (mk_curried_funtype tparams body_type mode) ; do_check = true }
+    { SLet { name ; annot = AType { typ = (mk_curried_funtype tparams body_type mode) ; do_check = true }
       ; defn = mk_curried_fun (extract_param_names tparams) body } }
   | LET REC name=l_ident param=l_ident params=l_ident* EQUALS body=expr
     { SLetRec { name ; annot = ANone ; param ; defn = mk_curried_fun params body } }
   | LET REC name=l_ident tparams=typed_params mode=returns body_type=expr EQUALS body=expr
     { SLetRec { name
-      ; annot = AType { tau = (mk_curried_funtype tparams body_type mode) ; do_check = true }
+      ; annot = AType { typ = (mk_curried_funtype tparams body_type mode) ; do_check = true }
       ; param = fst (List.hd tparams)
       ; defn = mk_curried_fun (List.tl (extract_param_names tparams)) body } }
   | LET REC b=binding EQUALS FUNCTION param=l_ident params=l_ident* ARROW body=expr
@@ -83,9 +83,9 @@ statement_with_pos:
     { (s, { begins = $startpos ; ends = $endpos } ) }
 
 %inline binding:
-  | name=l_ident COLON tau=expr
-  | OPEN_PAREN name=l_ident COLON tau=expr CLOSE_PAREN
-    { name, AType { tau ; do_check = true } }
+  | name=l_ident COLON typ=expr
+  | OPEN_PAREN name=l_ident COLON typ=expr CLOSE_PAREN
+    { name, AType { typ ; do_check = true } }
   | name=l_ident
     { name, ANone }
   ;
@@ -103,10 +103,10 @@ typed_param_group:
   ;
 
 %inline typed_name:
-  | name=l_ident COLON tau=expr
-    { name, tau }
-  | name=l_ident COLON tau=expr PIPE predicate=expr
-    { let t = Param.make_refinement name ~tau ~predicate { begins = $startpos ; ends = $endpos } in
+  | name=l_ident COLON typ=expr
+    { name, typ }
+  | name=l_ident COLON typ=expr PIPE pred=expr
+    { let t = Param.make_refinement name ~typ ~pred { begins = $startpos ; ends = $endpos } in
       name, t }
   | name=l_ident COLON_EQUAL e=expr
     { name, ETypeSingle e }
@@ -280,14 +280,14 @@ op_expr:
   (* exactly one label *)
   | OPEN_BRACE record=record_type_body CLOSE_BRACE
     { ETypeRecord record }
-  (* refinement type with binding for tau, which looks like a record type at first *)
-  | OPEN_BRACE var=l_ident COLON tau=expr PIPE predicate=expr CLOSE_BRACE
-    { Param.make_refinement var ~tau ~predicate { begins = $startpos ; ends = $endpos } }
+  (* refinement type with binding for typ, which looks like a record type at first *)
+  | OPEN_BRACE var=l_ident COLON typ=expr PIPE pred=expr CLOSE_BRACE
+    { Param.make_refinement var ~typ ~pred { begins = $startpos ; ends = $endpos } }
   ;
 
 %inline record_type_item:
-  | label=record_label COLON tau=expr
-    { label, tau }
+  | label=record_label COLON typ=expr
+    { label, typ }
   | label=record_label COLON_EQUAL e=expr
     { label, ETypeSingle e }
   ;

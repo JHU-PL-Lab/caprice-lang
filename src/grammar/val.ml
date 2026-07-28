@@ -88,8 +88,8 @@ let rec does_wrap_matter : typ t -> bool = function
   (* propagate *)
   | VTypeVariant variant_t ->
     Variant.Label.Map.exists (fun _ -> does_wrap_matter) variant_t
-  | VTypeList t
-  | VTypeRefine { tau = t ; _ } -> does_wrap_matter t
+  | VTypeList typ
+  | VTypeRefine { typ ; _ } -> does_wrap_matter typ
   | VTypeTuple (t1, t2) -> does_wrap_matter t1 || does_wrap_matter t2
   (* closures (mu), functions, and records/modules need wrap *)
   | VTypeMu _ (* we overapproximate and assume the recursive type wrap can matter *)
@@ -198,8 +198,8 @@ let rec intensional_equal (x : any) (y : any) : Comparator.t =
     in
     fold [] c1.captured c2.captured
   | Any VTypeRefine r1, Any VTypeRefine r2 ->
-    let- () = iequal r1.tau r2.tau in
-    iequal_closure [ r1.var, r2.var ] r1.predicate r2.predicate
+    let- () = iequal r1.typ r2.typ in
+    iequal_closure [ r1.var, r2.var ] r1.pred r2.pred
   | Any VFunClosure c1, Any VFunClosure c2 ->
     iequal_closure [ c1.param, c2.param ] c1.closure c2.closure
   | Any VFunFix c1, Any VFunFix c2 ->
@@ -361,8 +361,8 @@ and iequal_closure bindings closure1 closure2 =
         iequal_expr ((id1, id2) :: bindings) (ETypeModule tl1) (ETypeModule tl2)
       end
     | ETypeRefine r1, ETypeRefine r2 ->
-      let- () = ieq r1.tau r2.tau in
-      iequal_expr ((r1.var, r2.var) :: bindings) r1.predicate r2.predicate
+      let- () = ieq r1.typ r2.typ in
+      iequal_expr ((r1.var, r2.var) :: bindings) r1.pred r2.pred
     | ETypeMu r1, ETypeMu r2 ->
       iequal_expr ((r1.var, r2.var) :: bindings) r1.body r2.body
     | ETypeFun tf1, ETypeFun tf2 ->
@@ -441,7 +441,7 @@ and iequal_closure bindings closure1 closure2 =
     match annot1, annot2 with
     | Lang.Ast.ANone, Lang.Ast.ANone ->
       make true
-    | AType { tau = t1 ; do_check = _ } , AType { tau = t2 ; do_check = _ } ->
+    | AType { typ = t1 ; do_check = _ } , AType { typ = t2 ; do_check = _ } ->
       iequal_expr bindings t1 t2
     | _ ->
       Utils.Etc.assert_uniq_ctor annot1 annot2;

@@ -193,7 +193,7 @@ module Make (Atom_cell : Utils.Types.P1) = struct
     | VGenFun { funtype = { domain = _ ; codomain = CodDependent _ ; mode = _ } ; table = _ }
     | VTypeFun { domain = _ ; codomain = CodDependent _ ; mode = _ } -> true
     (* Refinement types: closure does not escape, so just look at type *)
-    | VTypeRefine { tau ; _ } -> contains_mu tau
+    | VTypeRefine { typ ; _ } -> contains_mu typ
 
   let default_constructor (variant_t : tval Variant.Label.Map.t) : Variant.Label.t =
     (* Default is a random variant constructor whose payload does not contain a mu type *)
@@ -281,8 +281,8 @@ module Make (Atom_cell : Utils.Types.P1) = struct
     | VTypeRecord map_body ->
       if Record.Label.Map.is_empty map_body then "{:}" else
       let decls =
-        Record.Label.Map.list_map (fun label tau ->
-          Printf.sprintf "%s : %s" (Record.Label.to_string label) (to_string tau)
+        Record.Label.Map.list_map (fun label typ ->
+          Printf.sprintf "%s : %s" (Record.Label.to_string label) (to_string typ)
         ) map_body
       in
       Printf.sprintf "{ %s }" (String.concat " ; " decls)
@@ -295,13 +295,13 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       Printf.sprintf "sig %s end" (String.concat " " vals)
     | VTypeVariant map_body ->
       let constructors =
-        Variant.Label.Map.list_map (fun label tau ->
-          Printf.sprintf "%s of %s" (Variant.Label.to_string label) (to_string tau)
+        Variant.Label.Map.list_map (fun label typ ->
+          Printf.sprintf "%s of %s" (Variant.Label.to_string label) (to_string typ)
         ) map_body
       in
       Printf.sprintf "(%s)" (String.concat " | " constructors)
-    | VTypeRefine { var ; tau ; predicate = _closure } ->
-      Printf.sprintf "{ %s : %s | <predicate> }" (Ident.to_string var) (to_string tau)
+    | VTypeRefine { var ; typ ; pred = _closure } ->
+      Printf.sprintf "{ %s : %s | <predicate> }" (Ident.to_string var) (to_string typ)
     | VTypeTuple (t1, t2) ->
       Printf.sprintf "(%s * %s)" (to_string t1) (to_string t2)
     | VTypeSingle Any v ->

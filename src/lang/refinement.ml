@@ -1,2 +1,2 @@
 
-type ('a, 'p) t = { var : Ident.t ; tau : 'a ; predicate : 'p }
+type ('a, 'p) t = { var : Ident.t ; typ : 'a ; pred : 'p }
