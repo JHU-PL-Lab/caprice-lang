@@ -37,15 +37,14 @@ let eval
     Otherwise, fork on the left and continue on the right.
   *)
   let fork_on_left (type a env) ~(left : 'a. ('a, env) m) ~(right : (a, env) m) ~reason =
-    let* () = incr_step ~max_step in
     let run_left =
       let* () = push_and_log_tag @@ Left reason in
       left
-    in
-    let run_right =
+    and run_right =
       let* () = push_and_log_tag @@ Right reason in
       right
     in
+    let* () = incr_step ~max_step in
     let* l_opt = allow_inputs (read_input KTag) in
     match l_opt with
     | Some Left reason' when reason = reason' -> run_left
@@ -291,9 +290,8 @@ let eval
       let* vright = force_eval right in
       let k f s1 s2 op =
         return_any @@ f (Smt.Formula.binop op s1 s2)
-      in
-      let v_int n s = VInt (n, s) in
-      let v_bool n s = VBool (n, s) in
+      and v_int n s = VInt (n, s)
+      and v_bool n s = VBool (n, s) in
       match op, vleft, vright with
       | BPlus       , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_int (n1 + n2)) e1 e2 Plus
       | BMinus      , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_int (n1 - n2)) e1 e2 Minus
@@ -454,8 +452,8 @@ let eval
   and check
     : 'a 'env. Val.any -> Val.tval -> ('a, 'env) m
     = fun v t ->
-    let refute = escape (Refutation (v, t)) in
-    let confirm = escape Confirmation in
+    let refute = escape (Refutation (v, t))
+    and confirm = escape Confirmation in
     let* () = incr_step ~max_step in
     (* In just about every case except checking mu type, we want to force the value. *)
     (* Even though it is wordy, we do this forcing inside each case. *)
@@ -603,23 +601,22 @@ let eval
       let* v = force_value v in
       begin match v with
       | Any VRecord record_v ->
-        let t_labels = Record.label_set record_t in
-        let v_labels = Record.label_set record_v in
-          let check_label label =
-            check
-              (Record.Label.Map.find label record_v)
-              (Record.Label.Map.find label record_t)
-          in
-          check_struct check_label ~refute ~t_labels ~v_labels
+        let t_labels = Record.label_set record_t
+        and v_labels = Record.label_set record_v in
+        let check_label label =
+          check
+            (Record.Label.Map.find label record_v)
+            (Record.Label.Map.find label record_t)
+        in
+        check_struct check_label ~refute ~t_labels ~v_labels
       | _ -> refute
       end
     | VTypeModule { captured ; env } ->
       let* v = force_value v in
       begin match v with
       | Any VModule module_v ->
-        let t_labels_ls = List.map fst captured in
-        let t_labels = Record.Label.Set.of_list t_labels_ls in
-        let v_labels = Record.label_set module_v in
+        let t_labels = Record.Label.Set.of_list (List.map fst captured)
+        and v_labels = Record.label_set module_v in
         let check_label label =
           let new_env, typ =
             (* think about sharing this computation because rn it is redone on every fork *)

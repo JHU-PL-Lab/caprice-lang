@@ -38,8 +38,7 @@ let contract t =
       | Formula { cond ; do_flip = _ } -> cond :: acc
       | Tag _ -> acc
     ) t.goal.constraints t.rev_stem
-  in
-  let path_priority =
+  and path_priority =
     List.fold_left (fun acc (item, _) ->
       Priority.plus (Path_item.priority item) acc
     ) t.goal.priority t.rev_stem

@@ -39,9 +39,9 @@ let is_before t step =
 *)
 let make (last_formula : bool Formula.t) (other_formulas : bool Formula.t list)
   (i_env : Input_env.t) ~(priority : Priority.t) ~(when_ : Step.t) : t =
-  let target_formula = Smt.Formula.scc last_formula ~wrt:other_formulas in
-  let all_formulas = last_formula :: other_formulas in
-  let id = Utils.Uid.make_new () in
+  let target_formula = Smt.Formula.scc last_formula ~wrt:other_formulas
+  and all_formulas = last_formula :: other_formulas
+  and id = Utils.Uid.make_new () in
   { target_formula ; all_formulas ; i_env ; id ; when_ ; priority }
 
 let compare a b =

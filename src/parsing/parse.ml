@@ -13,8 +13,8 @@ let handle_parse_error buf f =
   try f ()
   with exn ->
     let curr = buf.lex_curr_p in
-    let line = curr.pos_lnum in
-    let column = curr.pos_cnum - curr.pos_bol in
+    let line = curr.pos_lnum
+    and column = curr.pos_cnum - curr.pos_bol in
     let tok = lexeme buf in
     raise @@ Parse_error (Printexc.to_string exn, line, column, tok)
 

@@ -356,8 +356,8 @@ and iequal_closure bindings closure1 closure2 =
       | (lbl1, t1) :: tl1, (lbl2, t2) :: tl2 ->
         let- () = ieq t1 t2 in
         let= () = Record.Label.equal lbl1 lbl2 in
-        let id1 = Record.Label.to_ident lbl1 in
-        let id2 = Record.Label.to_ident lbl2 in
+        let id1 = Record.Label.to_ident lbl1
+        and id2 = Record.Label.to_ident lbl2 in
         iequal_expr ((id1, id2) :: bindings) (ETypeModule tl1) (ETypeModule tl2)
       end
     | ETypeRefine r1, ETypeRefine r2 ->

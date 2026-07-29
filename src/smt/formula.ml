@@ -237,8 +237,8 @@ let rec subst
     | And e_ls ->
       and_ (List.map (subst v s) e_ls)
     | Binop (op, e1, e2) ->
-      let e1' = subst v s e1 in
-      let e2' = subst v s e2 in
+      let e1' = subst v s e1
+      and e2' = subst v s e2 in
       if e1 == e1' && e2 == e2' then
         e
       else
@@ -290,6 +290,6 @@ let scc (formula : (bool, 'k) T.t) ~(wrt : (bool, 'k) t list) : (bool, 'k) T.t =
     else
       acc_scc
   in
-  let formula_symbols = symbols formula in
-  let all_with_symbols = List.map (fun e -> (e, symbols e)) wrt in
+  let formula_symbols = symbols formula
+  and all_with_symbols = List.map (fun e -> (e, symbols e)) wrt in
   and_ @@ collect formula_symbols [ formula ] all_with_symbols

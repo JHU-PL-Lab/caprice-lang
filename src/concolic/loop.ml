@@ -16,8 +16,7 @@ let adjacent_targets ~(max_tree_depth : int) (stem : Stem.t)
         let new_target =
           Target.make (Formula.not_ cond) acc_formulas logged_inputs
             ~priority ~when_
-        in
-        let ret_targets, ~is_pruned =
+        and ret_targets, ~is_pruned =
           make priority (cond :: acc_formulas) tl
         in
         new_target :: ret_targets, ~is_pruned
@@ -28,8 +27,8 @@ let adjacent_targets ~(max_tree_depth : int) (stem : Stem.t)
           Target.make Formula.trivial acc_formulas
             (Input_env.add KTag key tag logged_inputs) ~priority ~when_
         in
-        let new_targets = List.map target_of_tag alternatives in
-        let ret_targets, ~is_pruned = make priority acc_formulas tl in
+        let new_targets = List.map target_of_tag alternatives
+        and ret_targets, ~is_pruned = make priority acc_formulas tl in
         List.rev_append new_targets ret_targets, ~is_pruned
   in
   make (Goal.priority stem.goal) stem.goal.constraints (Stem.forward_stem stem)
@@ -42,10 +41,12 @@ let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) :
       `Quit answer (* an error is the objective, and we found it! *)
     | { answer ; stem } :: tl ->
       let new_targets, ~is_pruned = adjacent_targets stem ~max_tree_depth in
-      let targets = List.rev_append new_targets acc_targets in
-      let run_answer = if is_pruned then Answer.prune answer else answer in
-      let answer = Answer.min acc_answer run_answer in
-      collect targets answer tl
+      let all_targets = List.rev_append new_targets acc_targets
+      and merged_answer =
+        let run_answer = if is_pruned then Answer.prune answer else answer in
+        Answer.min acc_answer run_answer
+      in
+      collect all_targets merged_answer tl
   in
   collect [] Exhausted runs
 
