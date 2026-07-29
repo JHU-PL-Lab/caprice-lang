@@ -1,4 +1,4 @@
-(lang dune 3.23)
+(lang dune 3.24)
 
 (name caprice)
 
