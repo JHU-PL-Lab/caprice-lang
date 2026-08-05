@@ -29,9 +29,11 @@ let make_test (dir : string) : unit Alcotest.test option =
     |> List.filter_map Caprice_test.Ctl_semantics.make_test
   )
 
-let () = Alcotest.run "test-caprice" (
-  root_dir
-  |> all_subdirectories
-  |> List.filter_map make_test
-)
-
+let () =
+  let program_tests =
+    root_dir
+    |> all_subdirectories
+    |> List.filter_map make_test
+  in
+  Alcotest.run "test-caprice"
+    (Caprice_test.Smt_simplifiers.tests :: program_tests)

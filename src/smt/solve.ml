@@ -11,15 +11,9 @@ type 'k simplifier = 'k solver -> 'k solver
 let direct_solve (module X : SOLVABLE) : 'k solver = fun e ->
   X.solve (Formula.transform (module X) e)
 
-(*
-  First attempts to solve with a few heuristics, and then calls the solver.
-  This simply special-cases on some common formulas. It also extracts out
-  constant assignments (variable = constant).
-
-  As more simplifiers are added, we could instead name this after implied
-  concretization.
-*)
-let rec simplify : 'k simplifier = fun solve expr ->
+(** [solve_trivial solve expr] directly solves a few common formula shapes and
+    delegates everything else to SOLVE. *)
+let solve_trivial : 'k simplifier = fun solve expr ->
   let assign i k = Solution.Sat (Model.singleton i k) in
   (* Hand-write a lot of special cases for single formulas *)
   match expr with
@@ -51,26 +45,6 @@ let rec simplify : 'k simplifier = fun solve expr ->
     | I _, I _ -> Solution.merge (assign 0 k) (assign 1 k')
     | B _, B _ -> Solution.merge (assign true k) (assign false k')
     end
-  | And e_ls ->
-    (*
-      If there is any (key = int) formula, then we can subst it through, for it
-      is an "implied concretization".
-
-      This idea originates with KLEE (https://dl.acm.org/doi/abs/10.5555/1855741.1855756)
-      from Section 3.3, paragraph _Constraint Set Simplification_.
-    *)
-    let find (e : ('a, 'k) Formula.t) : (const:int * (int, 'k) Symbol.t) option =
-      match e with
-      | Binop (Equal, Key k, Const_int const) -> Some (~const, k)
-      | _ -> None
-    in
-    begin match List.find_map find e_ls with
-    | Some (~const, k) ->
-      let reduced_expr = Formula.and_ (List.map (Formula.subst const k) e_ls) in
-      Solution.merge (simplify solve reduced_expr) (assign const k)
-    | None ->
-      solve expr
-    end
   | _ ->
     solve expr
 
@@ -83,7 +57,14 @@ let rec simplify : 'k simplifier = fun solve expr ->
   benchmarks; it only slows down the test suite.
 *)
 let main_solve (module Oracle : SOLVABLE) : 'k solver = fun e ->
-  let solution = simplify (direct_solve (module Oracle)) e in
+  let solution =
+    match Simplify.reduce e with
+    | Simplify.Contradiction -> Solution.Unsat
+    | Simplify.Reduced { residual ; extracted } ->
+      Solution.merge
+        (Solution.Sat extracted)
+        (solve_trivial (direct_solve (module Oracle)) residual)
+  in
   let () =
     assert (
       match solution with

@@ -44,3 +44,5 @@ _opam/
 
 # Executables
 *.exe
+.editorconfig
+/sandbox/
