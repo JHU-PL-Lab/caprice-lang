@@ -12,7 +12,7 @@ let direct_solve (module X : SOLVABLE) : 'k solver = fun e ->
   X.solve (Formula.transform (module X) e)
 
 (** [solve_trivial solve expr] directly solves a few common formula shapes and
-    delegates everything else to SOLVE. *)
+    delegates everything else to [solve]. *)
 let solve_trivial : 'k simplifier = fun solve expr ->
   let assign i k = Solution.Sat (Model.singleton i k) in
   (* Hand-write a lot of special cases for single formulas *)

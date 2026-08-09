@@ -19,7 +19,7 @@ let binding_from_formula (formula : (bool, 'k) Formula.t) =
     Some (Binding (B key, false))
   | _ -> None
 
-let find_binding formula =
+let find_first_binding formula =
   match formula with
   | Formula.And clauses -> List.find_map binding_from_formula clauses
   | formula -> binding_from_formula formula
@@ -35,15 +35,12 @@ let reduce formula =
     | Formula.Const_bool false -> Contradiction
     | Formula.Const_bool true -> Reduced { residual ; extracted }
     | residual ->
-      begin
-        match find_binding residual with
-        | None -> Reduced { residual ; extracted }
-        | Some (Binding (symbol, value)) ->
-          let residual = Formula.subst value symbol residual in
-          let extracted =
-            Model.merge (Model.singleton value symbol) extracted
-          in
-          loop extracted residual
+      begin match find_first_binding residual with
+      | None -> Reduced { residual ; extracted }
+      | Some (Binding (symbol, value)) ->
+        let residual = Formula.subst value symbol residual
+        and extracted = Model.merge (Model.singleton value symbol) extracted in
+        loop extracted residual
       end
   in
   loop Model.empty formula

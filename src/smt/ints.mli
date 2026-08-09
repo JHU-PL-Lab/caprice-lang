@@ -1,6 +1,7 @@
 (** Integer-specific formula normalization. *)
 
-(** [linearize formula] simplifies FORMULA by evaluating basic linear operations if any exist in FORMULA *)
+(** [linearize formula] simplifies [formula] by evaluating basic linear
+    operations if any exist in [formula]. *)
 val linearize : (bool, 'k) Formula.t -> (bool, 'k) Formula.t
 
 (** [tighten_bounds formula] combines unary integer bounds and disequalities in
