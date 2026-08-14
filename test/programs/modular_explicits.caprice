@@ -162,3 +162,88 @@ let rec mapM (dep M : MONAD) (type a b) (f : a -> M.m b) (ls : list a) : M.m (li
       )
     )
   end
+
+(* Examples from the OCaml manual section 12.5, some of which OCaml cannot typecheck *)
+
+(* first some helpers to mimic what comes from the OCaml stdlib *)
+
+let rec list_fold_right (type a acc) (f : a -> acc -> acc) (ls : list a) (init : acc) : acc =
+  match ls with
+  | [] -> init
+  | hd :: tl ->
+    let res = list_fold_right a acc f tl init in
+    f hd res
+  end
+
+let SET (type a) : type = sig
+  val t : type
+  val a := a
+  val empty : t
+  val add : a -> t -> t
+  val to_list : t -> list a
+end
+
+let CMP = sig
+  val t : type
+  val compare : t -> t -> int
+end
+
+(* This is indeed a lot like sort_nondep from the OCaml manual... *)
+let sort (type a) (dep Set : SET a) (li : list Set.a) : list Set.a =
+  Set.to_list (list_fold_right a Set.t Set.add li Set.empty)
+
+let MakeSet (dep Cmp : CMP) : SET Cmp.t = struct
+  let a = Cmp.t
+  let t = list a
+  let empty = []
+  let add x xs = x :: xs (* sort of bogus, but we just need any implementation at all *)
+  let to_list ls = ls
+end
+
+let Icmp = struct
+  let t = int
+  let compare a b =
+    if a < b then
+      -1
+    else if a == b then
+      0
+    else
+      1
+end
+
+let ISetIncr = MakeSet (Icmp)
+let ISetDecr = MakeSet (struct
+  let t = int
+  let compare a b = Icmp.compare b a
+end)
+
+let not_wrong (sort_order : `Incr of unit | `Decr of unit) : list int =
+  sort
+    int
+    (match sort_order with
+     | `Incr () -> ISetIncr
+     | `Decr () -> ISetIncr
+     end
+    )
+    [2; 4]
+
+let okay (sort_order : `Incr of unit | `Decr of unit) : list int =
+  let m =
+    match sort_order with
+    | `Incr () -> ISetIncr
+    | `Decr () -> ISetDecr
+    end
+  in
+  sort int m [2; 4]
+
+let id = fun x -> x
+
+let not_wrong' = id (sort int) ISetIncr [2; 3]
+
+let rec appl n f =
+  if n == 1 then
+    fun x -> f x
+  else
+    fun x -> appl (n - 1) f x
+
+let not_wrong2 = appl 3 sort int ISetIncr [2; 3]
