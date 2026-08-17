@@ -140,8 +140,7 @@ let push_formula_to_path ?(allow_flip : bool = true) ~(max_step : Step.t)
 *)
 let read_input (kind : 'a Input.Kind.t) : ('a option, 'env) m =
   let* () = assert_inputs_allowed in
-  let* step in
-  let* { State.stem ; _ } = get in
+  let* { State.stem ; _ } = get and> step in
   return (Input_env.find kind (Stepkey step) stem.goal.assignments)
 
 (**

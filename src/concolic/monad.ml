@@ -44,6 +44,34 @@ let[@inline] bind (x : ('a, 'x) t) (f : 'a -> ('b, 'x) t) : ('b, 'x) t =
 
 let ( let* ) = bind
 
+(**
+  Use [and>] to sequence definitions whose relative order has no meaning, yet
+  their effects are nevertheless sequenced. This is used to document that
+  certain bindings are independent and that no semantic ordering between the
+  effects is intended.
+  This is intentionally not an applicative combinator, and thus it is not named
+  [and*]. Note the difference between the behavior of
+    let* a = None and* b = Some (print_endline "hello world"; 0) in Some b;;
+    hello world
+    - : int option = None
+  and
+    let* a = None in let* b = Some (print_endline "hello world"; 0) in Some b;;
+    - : int option = None
+  in the option monad. This [and>] behaves like the second: it is identical
+  to [... in let* ...] except that the second binding cannot use the first, and
+  it is merely self-documenting that order does not matter, even though the
+  values are still sequenced.
+*)
+let ( and> ) x y =
+  { run = fun ~reject ~accept state step env ctx ->
+      x.run state step env ctx ~reject ~accept:(fun a state step ->
+        y.run state step env ctx ~reject ~accept:(fun b state step ->
+          accept (a, b) state step
+        )
+      )
+  }
+
+
 let[@inline] return (a : 'a) : ('a, 'x) t =
   { run = fun ~reject:_ ~accept state step _ _ ->
       accept a state step
