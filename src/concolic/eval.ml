@@ -640,7 +640,7 @@ let eval
     | VTypeMu { var ; closure = ({ captured ; env } as closure) } -> (* don't force v *)
       (* Begin by unrolling to ensure the type is contractive.
         Noncontractive types are disallowed cause an error. *)
-      let* t_body = unroll_mu var closure in
+      let* t_unrolled = unroll_mu var closure in
       begin match v with
       | Any VLazy { cell ; wrapping_types } ->
         let* lazy_v = get_cell cell in
@@ -648,19 +648,19 @@ let eval
         | LValue any_v ->
           check any_v t
         | LLazy LGenList _ ->
-          check v t_body
+          check v t_unrolled
         | LLazy LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           let* a = allow_inputs (gen VType) in (* fresh type to use as a stub *)
           let* t_body = local' (Env.set var a env) (eval_type captured)
-          and> wrapped =
-            let* t_body' = local' (Env.set var' a env') (eval_type captured') in
-            if Val.equal t_body t_body' && wrapping_types = [] then confirm else
+          and> t_body' = local' (Env.set var' a env') (eval_type captured') in
+          if Val.equal t_body t_body' && wrapping_types = [] then confirm else
+          let* wrapped =
             let* genned = allow_inputs (gen t_body') in
             wrap_multi wrapping_types genned
           in
           check wrapped t_body
         end
-      | _ -> check v t_body
+      | _ -> check v t_unrolled
       end
     | VTypeList t_body -> (* don't force v *)
       begin match v with
