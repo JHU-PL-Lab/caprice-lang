@@ -697,7 +697,7 @@ let eval
       fork_on_left ~reason:CheckRefinementType
         ~left:(check v typ)
         ~right:(
-          let* p = local' (Env.set var v env) (eval captured) in
+          let* p = disallow_inputs @@ local' (Env.set var v env) (eval captured) in
           match p with
           | Any VBool (b, s) ->
             if b then
@@ -876,7 +876,7 @@ let eval
         force_gen_list t
     | VTypeRefine { var ; typ ; pred = { captured ; env } } ->
       let* v = gen typ in
-      let* p = local' (Env.set var v env) (eval captured) in
+      let* p = disallow_inputs @@ local' (Env.set var v env) (eval captured) in
       begin match p with
       | Any VBool (b, s) ->
         if b then

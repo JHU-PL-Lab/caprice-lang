@@ -1,0 +1,9 @@
+(* TEST
+  include refute;
+*)
+
+let t = { f : int ~> int | f 0 == 0 }
+
+(* ERROR: predicate is nondeterministic *)
+let f (g : t) : singleton 0 =
+  g 0

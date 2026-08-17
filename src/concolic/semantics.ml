@@ -18,7 +18,7 @@ module State = struct
     }
 end
 
-(* Context: whether determinism is allowed or not *)
+(* Context: whether nondeterminism is allowed or not *)
 type det_ctx = Allow_inputs | Disallow_inputs
 
 include Monad
