@@ -56,8 +56,8 @@ let[@inline] fetch (id : Ident.t) : (Val.any, Val.Env.t) m =
 
   The ideal implementation would simply be `escape Vanish`.
 *)
-let vanish : 'a 'env. ('a, 'env) m =
-  { run = fun ~reject ~accept:_ state _ _ _ -> reject Vanish state }
+(* let vanish : 'a 'env. ('a, 'env) m =
+  { run = fun ~reject ~accept:_ state _ _ _ -> reject Vanish state } *)
 
 let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
   escape (Eval_result.Mismatch msg)

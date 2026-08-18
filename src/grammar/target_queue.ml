@@ -12,8 +12,8 @@ let push_one (BFS q : t) (target : Target.t) : t =
 let push_list (x : t) (ls : Target.t list) : t =
   List.fold_left push_one x ls
 
-let remove (BFS q : t) (target : Target.t) : t =
-  BFS (Q.remove target q)
+(* let remove (BFS q : t) (target : Target.t) : t =
+  BFS (Q.remove target q) *)
 
 (**
   Pop a target, which then must be solved and have its input environment
