@@ -1,0 +1,14 @@
+(* TEST
+  include refute;
+*)
+
+let f = fun x y -> y + x
+let g = fun x y -> x + y
+
+let h (d : (int -> int -> int) -> bool) : unit =
+  (* ERROR: f and g are not intensionally equal, so incompleteness means the
+    condition can be true. *)
+  if not (d g == d f) then
+    0
+  else
+    ()

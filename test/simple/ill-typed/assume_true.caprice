@@ -1,0 +1,7 @@
+(* TEST
+  include refute;
+*)
+
+let f (x : int | x == 0) : int =
+  let _ = assume (x == 0) in
+  true (* ERROR: reachable *)

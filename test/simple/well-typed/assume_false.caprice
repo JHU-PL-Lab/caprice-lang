@@ -1,0 +1,7 @@
+(* TEST
+  include exhaust;
+*)
+
+let f (x : int) : int =
+  let _ = assume (x == x + 1) in
+  true (* unreachable *)

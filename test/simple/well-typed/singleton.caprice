@@ -1,0 +1,23 @@
+(* TEST
+  include exhaust;
+*)
+
+let u (u : unit) : singleton () = u
+
+let i (dep i : int) : singleton i = i
+
+let F = fun a -> struct
+  let t = a
+  let tls = list t
+end
+
+let G = fun b -> struct
+  let t = b
+  let tls = list t
+end
+
+let _ : singleton F = G
+
+let S = type -> sig val t : type val tls : type end
+
+let m (f : S -> int) : singleton true = f F == f G
