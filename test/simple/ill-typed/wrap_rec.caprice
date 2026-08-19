@@ -1,0 +1,25 @@
+(* TEST
+  flags += " -s never";
+  include refute;
+*)
+
+let t f = mu t. { i : int | f i } -> t
+
+let rec f (dep x : int | x > 0) (y : int | y > x) : t (fun z -> z > x) =
+  if x == 1 then
+    f 1
+  else
+    f (x - 1)
+
+let g = f 2
+
+let y = g 5 4 3 (* all good applications *)
+
+let z = y 2 (* ERROR: wrap error because 2 is not greater than the initial x, which was 2 *)
+
+(*
+  If we had parameterized recursive tyeps, it would be fun to make the bound go
+  down once on each application, but that is inductively defined, so it cannot
+  work.  For example, the `y 2` application would succeed, but `y 2 1` would
+  finally fail.
+*)
