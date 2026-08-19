@@ -380,9 +380,12 @@ let eval
     ---------------------------------
 
     Uses environment to evaluate.
+
+    Nondeterminism is disallowed when evaluting the type because the theory does
+    not support nondeterministic type expressions.
   *)
   and eval_type (expr : Ast.t) : (Val.tval, Val.Env.t) m =
-    let* v = force_eval expr in
+    let* v = disallow_inputs @@ force_eval expr in
     handle_any v
       ~dat:(fun d -> mismatch @@ non_type_value d)
       ~typ:return
@@ -520,15 +523,6 @@ let eval
             let* res = local_mode mode (eval_appl v_candidate w_arg)
             and> cod_tval = eval_codomain codomain w_arg in
             check res cod_tval
-            (* TODO: or is this instead this?
-              local_mode mode (
-                let* res = eval_appl v_candidate w_arg in
-                let* cod_tval = eval_codomain codomain w_arg in
-                check res cod_tval
-              )
-
-              Also consider the same code in the cases below producing `res`.
-            *)
           )
       | Any (VWrapped { data ; funtype } as self_fun) ->
         (* checked value gets primes *)
@@ -551,7 +545,7 @@ let eval
             | VFunClosure _
             | VFunFix _ ->
               let* v_arg = allow_inputs (gen domain) in
-              let* cod_tval = eval_codomain codomain v_arg (* TODO: mode on this? *)
+              let* cod_tval = eval_codomain codomain v_arg
               and> w_res =
                 let* res = local_mode mode (eval_appl data ~self_fun v_arg)
                 and> w_arg = wrap v_arg domain' in
