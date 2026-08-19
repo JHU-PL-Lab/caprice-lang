@@ -33,3 +33,15 @@
  )
  (deps
   (source_tree ../test/)))
+
+(rule
+ (target (dir "_bisect"))
+ (alias coverage)
+ (deps ./main.exe (source_tree ../test))
+ (action
+  (setenv BISECT_FILE "_bisect/bisect"
+  (setenv CTL_TESTDIR ../%{env:TD=test}
+  (setenv CTL_FLAGS %{env:CTL_FLAGS=-q}
+    (progn
+    (run mkdir -p _bisect)
+    (run sh -c "exec %{exe:main.exe} -e $CTL_FLAGS")))))))

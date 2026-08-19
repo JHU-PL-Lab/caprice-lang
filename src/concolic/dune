@@ -11,4 +11,5 @@
  )
  (synopsis "Concolic evaluator for Caprice")
  (instrumentation (backend landmarks --auto)) ; use `dune build --instrument-with landmarks` to get instrumentation
+ (instrumentation (backend bisect_ppx_ng))
 )

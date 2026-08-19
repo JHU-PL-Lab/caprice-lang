@@ -44,3 +44,6 @@ _opam/
 
 # Executables
 *.exe
+
+# Bisect coverage files
+_coverage/*
