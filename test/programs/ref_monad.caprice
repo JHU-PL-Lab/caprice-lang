@@ -1,0 +1,235 @@
+(* TEST
+  include exhaust;
+*)
+
+(*
+Eventually we'd like to work towards writing snapshottable stores:
+
+OCaml code for snapshottable stores
+type node = data ref
+and data =
+  | Mem
+  | Diff : 'a Ref.t * 'a * int * node -> data
+
+let create () = { root = ref Mem ; gen = 0 }
+
+module Ref = struct
+  type 'a t = { mutable v : 'a ; mutable g : int }
+  let make v = { v ; g = 0 }
+  let get _s r = r.v
+  let set s r v =
+    if r.g = s.gen
+    then r.v <- v
+    else
+      let root = ref Mem in
+      s.root := Diff (r; r.v; r.g; root) ;
+      s.root <- root ;
+      r.v <- v ;
+      r.g <- s.gen
+end
+
+type store = { mutable root : node ; mutable gen : int }
+type snapshot = { root : node ; gen : int }
+
+let rec reroot n =
+  match !n with
+  | Mem -> ()
+  | Diff (r; v; g; n') ->
+    reroot n' ;
+    n := Mem ;
+    n' := Diff (r; r.v; r.g; n) ;
+    r.v <- v ;
+    r.g <- g ;
+
+let capture ({ root ; gen } as store) =
+  let snap = { root ; gen } in
+  store.gen <- store.gen + 1 ;
+  snap
+
+let restore s snap =
+  reroot snap.root ;
+  s.root <- snap.root
+  s.gen <- snap.gen + 1
+
+
+Now I need to encode this with the ref monad
+
+We might include something like this:
+
+  let data =
+    `Diff of
+        {: cell : id.t     (* the id for the ref cell that this diff corresponds to *)
+        ; t    : type
+        ; val  : t       (* the value that got assigned to the ref cell during this diff *)
+        ; gen  : int     (* the generation the diff was done in *)
+        ; next : id.t    (* the id for the ref cell of the child of this node *)
+        :}
+    | `Mem of unit          (* this node is what is currently stored in memory *)
+
+But for now, just write a ref monad and use it a bit
+*)
+
+let Id = struct
+  let t = `Id of int
+
+  let get x =
+    match x with
+    | `Id i -> i
+    end
+
+  let make i = `Id i
+
+  let eq i1 i2 =
+    get i1 == get i2
+
+  let initial = `Id 0
+
+  let incr x =
+    make (get x + 1)
+end
+
+
+let Poly_map = struct
+  let t =
+    list sig
+      val a : type
+      val binding : Id.t * a
+    end
+
+  let eq_key binding key =
+    match binding with
+    | k, _ -> Id.eq key k
+    end
+
+  let empty = []
+
+  let set map key data_t data =
+    let item =
+      struct
+        let a = data_t
+        let binding = key, data
+      end
+    in
+    let rec insert ls =
+      match ls with
+      | [] -> [ item ]
+      | hd :: tl ->
+        if eq_key hd.binding key then
+          item :: tl
+        else
+          hd :: insert tl
+      end
+    in
+    insert map
+
+  let find map key =
+    let rec look ls =
+      match ls with
+      | [] -> assert false
+      | hd :: tl ->
+        match hd.binding with
+        | k, d ->
+          if Id.eq k key then
+            d
+          else
+            look tl
+        end
+      end
+    in
+    look map
+
+  let rec size (map : t) : int =
+    match map with
+    | [] -> 0
+    | hd :: tl -> 1 + size tl
+    end
+end
+
+let State = struct
+  let t =
+    { map     : Poly_map.t
+    ; next_id : Id.t
+    }
+
+  let size t = Poly_map.size t.map
+
+  let is_progression t1 t2 =
+    Id.get t2.next_id >= Id.get t1.next_id
+    && size t2 >= size t1 (* ERROR idea: I had accidentally switched the order of t1 and t2 in this *)
+
+  let incr_id t =
+    let next_id = Id.incr t.next_id in
+    { map = t.map ; next_id }
+
+  let set_map t map =
+    { map ; next_id = t.next_id }
+
+  let initial = { map = Poly_map.empty ; next_id = Id.initial }
+
+  let progression s =
+    { s' : t | is_progression s s' }
+end
+
+let m a = (s : State.t) -> State.progression s * a
+
+(* typecheck bind just for fun *)
+let bind (type a b) (x : m a) (f : a -> m b) : m b =
+  fun s ->
+    match x s with
+    | s', a -> f a s'
+    end
+
+(* quickly rewrite untyped bind for ease of usage in the following examples *)
+let bind x f s =
+  match x s with
+  | s', a -> f a s'
+  end
+
+let return a s = s, a
+
+let map x f = bind x (fun a -> return (f a))
+
+let read s = s, s
+
+let run x =
+  match x State.initial with
+  | _, v -> v
+  end
+
+let modify f s = f s, ()
+
+let deref ref_id =
+  map read (fun s ->
+    Poly_map.find s.map ref_id
+  )
+
+let set_ref ref_id t v =
+  modify (fun s ->
+    State.set_map
+      s
+      (Poly_map.set s.map ref_id t v)
+  )
+
+let new_ref t v =
+  bind read (fun s ->
+    let new_id = s.next_id in
+    bind (modify State.incr_id) (fun _ ->
+      bind (set_ref new_id t v) (fun _ ->
+        return new_id
+      )
+    )
+  )
+
+let res : { i : int | i == 10 } =
+  run (
+    bind (new_ref int 2) (fun ref0_id ->
+    bind (new_ref int 3) (fun ref1_id ->
+    bind (deref ref0_id) (fun rev0_v ->
+
+    let ref0_new = rev0_v * 3 + 1 in
+    bind (set_ref ref0_id int ref0_new) (fun _ ->
+
+    bind (deref ref1_id) (fun ref1_v ->
+    bind (deref ref0_id) (fun ref0_v ->
+    return (ref0_v + ref1_v) (* error idea: forgot parentheses here *)
+  )))))))
