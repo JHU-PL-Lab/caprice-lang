@@ -1,0 +1,8 @@
+(* TEST
+  include exhaust;
+*)
+
+let f (g : int -> bool) : bool =
+  let t = { i : int | g i } in (* allowed because g is deterministic *)
+  let h : t -> t = fun x -> x in
+  true

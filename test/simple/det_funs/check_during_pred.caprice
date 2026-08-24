@@ -1,0 +1,11 @@
+(* TEST
+  include exhaust;
+*)
+
+(*
+  Running this checker should be allowed inside a refinement because the
+  generated thing does not escape.
+*)
+let t = { i : int | let f (type a) (x : a) : a = x in i == 0 }
+
+let f : t -> t = fun x -> x
