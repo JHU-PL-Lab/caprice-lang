@@ -1,4 +1,8 @@
 
+(* Raised when an SMT formula has a solution that must overflow, which is out of
+  scope of this project, so failure is fine. *)
+exception Overflow
+
 type 'k t =
   | Sat of 'k Model.t
   | Unknown

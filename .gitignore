@@ -44,6 +44,8 @@ _opam/
 
 # Executables
 *.exe
+.editorconfig
+/sandbox/
 
 # Bisect coverage files
 _coverage/*
