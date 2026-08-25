@@ -1,0 +1,10 @@
+(* TEST
+  include exhaust;
+*)
+
+let t = { f : int -> int | f 0 == 0 }
+
+(* The theory technically does not support refined functions, but with
+  deterministic functions, it seems like we can do this. *)
+let f (g : t) : singleton 0 =
+  g 0

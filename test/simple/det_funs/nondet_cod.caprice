@@ -1,0 +1,10 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  Nondeterministic type expressions are disallowed. The type is evaluated
+  eagerly in this case, so it is discovered to be nondeterministic.
+*)
+let vanish (x : int) ~> if input == 0 then int else bool =
+  assume false

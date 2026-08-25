@@ -102,8 +102,8 @@ let eval
         fork_on_left ~reason:ApplWrappedFun
           ~left:(check v_arg funtype.domain)
           ~right:(
-            let* v_res = eval_appl ~self_fun data v_arg in
-            let* tval = eval_codomain funtype.codomain v_arg in
+            let* v_res = eval_appl ~self_fun data v_arg
+            and> tval = eval_codomain funtype.codomain v_arg in
             wrap v_res tval
           )
       | _ -> mismatch @@ apply_non_function v_func
@@ -136,14 +136,14 @@ let eval
       let* v = eval payload in
       return_any (VVariant { label ; payload = v })
     | ETuple (e1, e2) ->
-      let* v1 = eval e1 in
-      let* v2 = eval e2 in
+      let* v1 = eval e1
+      and> v2 = eval e2 in
       return_any (VTuple (v1, v2))
     | EEmptyList ->
       return_any VEmptyList
     | EListCons { hd ; tl } ->
-      let* hd = eval hd in
-      let* v_tl = eval tl in (* don't force eval because want to allow cons to lazy list *)
+      let* hd = eval hd
+      and> v_tl = eval tl in (* don't force eval because want to allow cons to lazy list *)
       let cons_with_hd tl = return_any (VListCons { hd ; tl }) in
       begin match v_tl with
       | Any (VEmptyList as tl)
@@ -165,8 +165,7 @@ let eval
       return_any (VTypeSingle v)
     (* symbolic values and branching *)
     | EPick_i ->
-      let* step = step in
-      let* i = read_and_log_input KInt ~default:(default_int ()) in
+      let* step and> i = read_and_log_input KInt ~default:(default_int ()) in
       return_any (VInt (i, Stepkey.int_symbol step))
     | ENot e ->
       let* v = force_eval e in
@@ -224,17 +223,14 @@ let eval
       in
       return_any (VTypeRecord record_body)
     | ETypeFun { domain = None, typ ; codomain ; mode } ->
-      let* dom_t = eval_type typ in
-      let* cod_t = eval_type codomain in
+      let* dom_t = eval_type typ and> cod_t = eval_type codomain in
       return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t ; mode })
     | ETypeFun { domain = Some id, typ ; codomain ; mode } ->
-      let* dom_t = eval_type typ in
-      let* env = read in
+      let* dom_t = eval_type typ and> env = read in
       return_any (VTypeFun { domain = dom_t ; mode
         ; codomain = CodDependent (id, { captured = codomain ; env }) })
     | ETypeRefine { var ; typ ; pred } ->
-      let* tval = eval_type typ in
-      let* env = read in
+      let* tval = eval_type typ and> env = read in
       return_any (VTypeRefine { var ; typ = tval ; pred = { captured = pred ; env }})
     | ETypeMu { var ; body } ->
       let* env = read in
@@ -384,9 +380,12 @@ let eval
     ---------------------------------
 
     Uses environment to evaluate.
+
+    Nondeterminism is disallowed when evaluting the type because the theory does
+    not support nondeterministic type expressions.
   *)
   and eval_type (expr : Ast.t) : (Val.tval, Val.Env.t) m =
-    let* v = force_eval expr in
+    let* v = disallow_inputs @@ force_eval expr in
     handle_any v
       ~dat:(fun d -> mismatch @@ non_type_value d)
       ~typ:return
@@ -409,7 +408,9 @@ let eval
     = fun var closure ->
     let rec go seen var closure =
       let t = VTypeMu { var ; closure } in
-      let* t_body = local' (Env.set var (Any t) closure.env) (eval_type closure.captured) in
+      let* t_body =
+        local' (Env.set var (Any t) closure.env) (eval_type closure.captured)
+      in
       match t_body with
       | VTypeMu { var ; closure } ->
         (* Check for cycle by looking for this type in what we've seen before *)
@@ -497,8 +498,8 @@ let eval
       | Any (VFunClosure _ as vfun)
       | Any (VFunFix _ as vfun) ->
         let* genned = allow_inputs (gen domain) in
-        let* res = local_mode mode (eval_appl vfun genned) in
-        let* cod_tval = eval_codomain codomain genned in
+        let* res = local_mode mode (eval_appl vfun genned)
+        and> cod_tval = eval_codomain codomain genned in
         check res cod_tval
       | Any (VGenFun { funtype ; _ } as v_candidate) ->
         (* checked value gets primes *)
@@ -519,18 +520,9 @@ let eval
               check that codomain' does not misuse it.
             *)
             let* w_arg = wrap v_arg domain' in
-            let* res = local_mode mode (eval_appl v_candidate w_arg) in
-            let* cod_tval = eval_codomain codomain w_arg in
+            let* res = local_mode mode (eval_appl v_candidate w_arg)
+            and> cod_tval = eval_codomain codomain w_arg in
             check res cod_tval
-            (* TODO: or is this instead this?
-              local_mode mode (
-                let* res = eval_appl v_candidate w_arg in
-                let* cod_tval = eval_codomain codomain w_arg in
-                check res cod_tval
-              )
-
-              Also consider the same code in the cases below producing `res`.
-            *)
           )
       | Any (VWrapped { data ; funtype } as self_fun) ->
         (* checked value gets primes *)
@@ -553,11 +545,13 @@ let eval
             | VFunClosure _
             | VFunFix _ ->
               let* v_arg = allow_inputs (gen domain) in
-              let* cod_tval = eval_codomain codomain v_arg in (* TODO: mode on this? *)
-              let* w_arg = wrap v_arg domain' in
-              let* res = local_mode mode (eval_appl data ~self_fun v_arg) in
-              let* cod_tval' = eval_codomain codomain' w_arg in
-              let* w_res = wrap res cod_tval' in
+              let* cod_tval = eval_codomain codomain v_arg
+              and> w_res =
+                let* res = local_mode mode (eval_appl data ~self_fun v_arg)
+                and> w_arg = wrap v_arg domain' in
+                let* cod_tval' = eval_codomain codomain' w_arg in
+                wrap res cod_tval'
+              in
               check w_res cod_tval
             | VGenFun { funtype ; _ } ->
               (* wrapping type gets double primes *)
@@ -569,19 +563,22 @@ let eval
                 ~left:(domain <: domain'')
                 ~right:(
                   let* v_arg = allow_inputs (gen domain) in
-                  let* w_arg = wrap v_arg domain' in
-                  let* res = local_mode mode (eval_appl data w_arg) in
-                  (*
-                    Since codomain'' has already been evaluated depending on any
-                    v in domain' wrapped with domain'', we know that codomain''
-                    does not misuse any value in domain'' with respect to the type
-                    domain'. Hence there is no need to wrap with domain' before
-                    evaluating codomain'' because it cannot possibly go wrong.
-                  *)
-                  let* cod_tval'' = eval_codomain codomain'' w_arg in
-                  let* w = wrap res cod_tval'' in
-                  let* cod_tval = eval_codomain codomain v_arg in
-                  check w cod_tval
+                  let* cod_tval = eval_codomain codomain v_arg
+                  and> w_res =
+                    let* res = local_mode mode (eval_appl data v_arg)
+                    and> w_arg = wrap v_arg domain' in
+                    (*
+                      Since codomain'' has already been evaluated depending on
+                      any v in domain' wrapped with domain'', we know that
+                      codomain'' does not misuse any value in domain'' with
+                      respect to the type domain'. Hence there is no need to
+                      wrap with domain' before evaluating codomain'' because it
+                      cannot possibly go wrong.
+                    *)
+                    let* cod_tval'' = eval_codomain codomain'' w_arg in
+                    wrap res cod_tval''
+                  in
+                  check w_res cod_tval
                 )
             | _ -> refute
           )
@@ -637,7 +634,7 @@ let eval
     | VTypeMu { var ; closure = ({ captured ; env } as closure) } -> (* don't force v *)
       (* Begin by unrolling to ensure the type is contractive.
         Noncontractive types are disallowed cause an error. *)
-      let* t_body = unroll_mu var closure in
+      let* t_unrolled = unroll_mu var closure in
       begin match v with
       | Any VLazy { cell ; wrapping_types } ->
         let* lazy_v = get_cell cell in
@@ -645,17 +642,19 @@ let eval
         | LValue any_v ->
           check any_v t
         | LLazy LGenList _ ->
-          check v t_body
+          check v t_unrolled
         | LLazy LGenMu { var = var' ; closure = { captured = captured' ; env = env' } } ->
           let* a = allow_inputs (gen VType) in (* fresh type to use as a stub *)
-          let* t_body = local' (Env.set var a env) (eval_type captured) in
-          let* t_body' = local' (Env.set var' a env') (eval_type captured') in
+          let* t_body = local' (Env.set var a env) (eval_type captured)
+          and> t_body' = local' (Env.set var' a env') (eval_type captured') in
           if Val.equal t_body t_body' && wrapping_types = [] then confirm else
-          let* genned = allow_inputs (gen t_body') in
-          let* wrapped = wrap_multi wrapping_types genned in
+          let* wrapped =
+            let* genned = allow_inputs (gen t_body') in
+            wrap_multi wrapping_types genned
+          in
           check wrapped t_body
         end
-      | _ -> check v t_body
+      | _ -> check v t_unrolled
       end
     | VTypeList t_body -> (* don't force v *)
       begin match v with
@@ -671,10 +670,10 @@ let eval
           tval_mu_body <: t
         | LLazy LGenList t' ->
           if wrapping_types = [] && Val.equal t' t_body then confirm else
-          let* genned = allow_inputs (gen t') in
+          let* genned = allow_inputs (gen t')
           (* genned is only a single element of the list, so wrap it
             by extracting the type bodies out of the list type *)
-          let* wrapping_bodies =
+          and> wrapping_bodies =
             List.fold_right (fun twrap acc_m ->
               let* acc = acc_m in
               match twrap with
@@ -697,7 +696,7 @@ let eval
       fork_on_left ~reason:CheckRefinementType
         ~left:(check v typ)
         ~right:(
-          let* p = local' (Env.set var v env) (eval captured) in
+          let* p = disallow_inputs @@ local' (Env.set var v env) (eval captured) in
           match p with
           | Any VBool (b, s) ->
             if b then
@@ -809,12 +808,10 @@ let eval
     | VTypeUnit ->
       return_any VUnit
     | VTypeInt ->
-      let* step = step in
-      let* i = read_and_log_input KInt ~default:(default_int ()) in
+      let* i = read_and_log_input KInt ~default:(default_int ()) and> step in
       return_any (VInt (i, Stepkey.int_symbol step))
     | VTypeBool ->
-      let* step = step in
-      let* b = read_and_log_input KBool ~default:(default_bool ()) in
+      let* b = read_and_log_input KBool ~default:(default_bool ()) and> step in
       return_any (VBool (b, Stepkey.bool_symbol step))
     | VTypeFun funtype ->
       let* table =
@@ -876,7 +873,7 @@ let eval
         force_gen_list t
     | VTypeRefine { var ; typ ; pred = { captured ; env } } ->
       let* v = gen typ in
-      let* p = local' (Env.set var v env) (eval captured) in
+      let* p = disallow_inputs @@ local' (Env.set var v env) (eval captured) in
       begin match p with
       | Any VBool (b, s) ->
         if b then
@@ -897,8 +894,7 @@ let eval
       else
         force_gen_mu var closure
     | VTypeTuple (t1, t2) ->
-      let* v1 = gen t1 in
-      let* v2 = gen t2 in
+      let* v1 = gen t1 and> v2 = gen t2 in
       return_any (VTuple (v1, v2))
     | VTypeModule { captured ; env } ->
       let rec fold_labels acc_m = function
@@ -936,8 +932,8 @@ let eval
       return_any VEmptyList
     | Right GenList ->
       let* () = push_tag_to_path (Right GenList) ~alternatives:[ Left GenList ] in
-      let* hd = gen body in
-      let* Any v_tl = gen (VTypeList body) in
+      let* hd = gen body
+      and> Any v_tl = gen (VTypeList body) in
       handle v_tl
         ~dat:(fun tl -> return_any @@ VListCons { hd ; tl })
         ~typ:(fun _ -> raise @@ InvariantException "List generation makes a type value")
@@ -1001,8 +997,8 @@ let eval
       | Any VLazy vlazy when does_wrap_matter t ->
         return_any (VLazy { vlazy with wrapping_types = t :: vlazy.wrapping_types })
       | Any VListCons { hd ; tl } ->
-        let* w_hd = wrap hd t_body in
-        let* Any w_tl = wrap (Any tl) t in
+        let* w_hd = wrap hd t_body
+        and> Any w_tl = wrap (Any tl) t in
         handle w_tl
           ~dat:(fun w_tl_data ->
             if w_hd == hd && w_tl_data == tl then
@@ -1086,8 +1082,7 @@ let eval
     | VTypeTuple (t1, t2) ->
       begin match v with
       | Any VTuple (v1, v2) ->
-        let* w1 = wrap v1 t1 in
-        let* w2 = wrap v2 t2 in
+        let* w1 = wrap v1 t1 and> w2 = wrap v2 t2 in
         if w1 == v1 && w2 == v2 then
           return v (* return value unchanged because wrapping did nothing *)
         else
@@ -1149,8 +1144,8 @@ let eval
       let v = to_any (VFunFix { fvar = name ; param ; closure = { captured = defn ; env } }) in
       return (name, v)
     | SLet { name ; annot = AType { typ ; do_check } ; defn } ->
-      let* tval = eval_type typ in
-      let* v = eval defn in
+      let* tval = eval_type typ
+      and> v = eval defn in
       let wrapped_val =
         let* w = wrap v tval in
         return (name, w)
@@ -1162,8 +1157,7 @@ let eval
       else
         wrapped_val
     | SLetRec { name ; annot = AType { typ ; do_check } ; param ; defn } ->
-      let* tval = eval_type typ in
-      let* env = read in
+      let* tval = eval_type typ and> env = read in
       let* v =
         let* self =
           if do_splay then
@@ -1230,8 +1224,8 @@ let eval
     : 'env. Val.lazy_cell -> (Val.any, 'env) m
     = fun { cell ; wrapping_types } ->
     assert do_splay;
+    let* lazy_v = get_cell cell in
     let* v_any =
-      let* lazy_v = get_cell cell in
       match lazy_v with
       | LLazy lv ->
         let* genned =

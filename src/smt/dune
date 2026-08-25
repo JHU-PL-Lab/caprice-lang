@@ -10,4 +10,5 @@
   )
  (synopsis "SMT module for Caprice")
  (instrumentation (backend landmarks --auto))
+ (instrumentation (backend bisect_ppx_ng))
 )

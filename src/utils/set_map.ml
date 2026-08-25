@@ -38,7 +38,7 @@ module Make_W (K : Baby.OrderedType) = struct
       mapiM (module M) (fun _ a -> f a) x
 
     let list_map (f : key -> 'a -> 'b) (t : 'a t) : 'b list =
-      let[@tail_mod_cons] rec aux enum =
+      let rec aux enum =
         match Enum.head_opt enum with
         | Some (k, a) -> f k a :: aux (Enum.tail enum)
         | None -> []
@@ -53,7 +53,7 @@ module Make_W (K : Baby.OrderedType) = struct
       random_from_seq ~size:(cardinal s) (to_seq s)
 
     let list_map (f : elt -> 'b) (t : t) : 'b list =
-      let[@tail_mod_cons] rec aux enum =
+      let rec aux enum =
         match Enum.head_opt enum with
         | Some a -> f a :: aux (Enum.tail enum)
         | None -> []

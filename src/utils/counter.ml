@@ -1,14 +1,10 @@
 
-type t = int Atomic.t
+type t = int ref
 
-let create () : t =
-  Atomic.make 0
+let create () : t = ref 0
 
-let next (x : t) : int =
-  Atomic.fetch_and_add x 1
+let next (x : t) : int = let y = !x in incr x; y
 
-let get (x : t) : int =
-  Atomic.get x
+let get (x : t) : int = !x
 
-let reset (x : t) : unit =
-  Atomic.set x 0
+let reset (x : t) : unit = x := 0

@@ -1,0 +1,27 @@
+(* TEST
+  include exhaust;
+  speed = slow;
+*)
+
+(*
+  The final predicate is hard to check when wrap is on because of exponential
+  blowup.
+
+  The `loop (x - 1)` is run twice at each level: once to check because it is
+  wrapped, and once to actually use the value.  This means even `loop 15` is
+  very expensive.
+*)
+
+let m a = a
+
+let bind (type a b) (x : m a) (f : a -> m b) : m b =
+  f x
+
+let return (type a) (a : a) : m a = a
+
+let rec loop x =
+  if x <= 0
+  then return int 0
+  else bind unit int (return unit ()) (fun _ -> loop (x - 1))
+
+let _ : { i : m int | i == 0 } = loop 15

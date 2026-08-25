@@ -18,7 +18,7 @@ module State = struct
     }
 end
 
-(* Context: whether determinism is allowed or not *)
+(* Context: whether nondeterminism is allowed or not *)
 type det_ctx = Allow_inputs | Disallow_inputs
 
 include Monad
@@ -56,8 +56,8 @@ let[@inline] fetch (id : Ident.t) : (Val.any, Val.Env.t) m =
 
   The ideal implementation would simply be `escape Vanish`.
 *)
-let vanish : 'a 'env. ('a, 'env) m =
-  { run = fun ~reject ~accept:_ state _ _ _ -> reject Vanish state }
+(* let vanish : 'a 'env. ('a, 'env) m =
+  { run = fun ~reject ~accept:_ state _ _ _ -> reject Vanish state } *)
 
 let mismatch : 'a 'env. string -> ('a, 'env) m = fun msg ->
   escape (Eval_result.Mismatch msg)
@@ -140,8 +140,7 @@ let push_formula_to_path ?(allow_flip : bool = true) ~(max_step : Step.t)
 *)
 let read_input (kind : 'a Input.Kind.t) : ('a option, 'env) m =
   let* () = assert_inputs_allowed in
-  let* step in
-  let* { State.stem ; _ } = get in
+  let* { State.stem ; _ } = get and> step in
   return (Input_env.find kind (Stepkey step) stem.goal.assignments)
 
 (**

@@ -15,8 +15,8 @@ let empty : t =
   ; when_ = Step.dummy
   ; priority = Priority.zero }
 
-let is_before t step =
-  Step.compare t.when_ step < 0
+(* let is_before t step =
+  Step.compare t.when_ step < 0 *)
 
 (**
   [make last_formula other_formula i_env ~priority ~when_] makes a target whose
@@ -47,8 +47,8 @@ let make (last_formula : bool Formula.t) (other_formulas : bool Formula.t list)
 let compare a b =
   Utils.Uid.compare a.id b.id
 
-let equal a b =
-  Utils.Uid.equal a.id b.id
+(* let equal a b =
+  Utils.Uid.equal a.id b.id *)
 
 let priority ({ priority ; _ } : t) : Priority.t =
   priority

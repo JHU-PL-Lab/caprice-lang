@@ -1,0 +1,9 @@
+(* TEST
+  include exhaust;
+*)
+
+let f (g : int -> bool) : unit =
+  (* use g to deterministically define a type *)
+  let t = mu t. if g 0 then `A of int else `B of t in
+  let h : t -> t = fun x -> x in
+  ()

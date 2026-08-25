@@ -1,0 +1,20 @@
+(* TEST
+  flags += " -s never";
+  include refute;
+*)
+
+let t f = mu t. { i : int | f i } -> t
+
+let geq0 y = y > 0
+
+let rec f (dep x : int | geq0 x) : t geq0 = f
+
+let g = f 2
+
+let nonneg = { j : int | geq0 j }
+
+(* ERROR: all good applications, but the int domain is too general *)
+let y : nonneg -> int -> top = g 5 4
+
+(* for example, this is well typed *)
+let _ : nonneg -> nonneg -> top = g 5 4 3
