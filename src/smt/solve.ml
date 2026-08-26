@@ -54,7 +54,8 @@ let main_solve (module Oracle : SOLVABLE) : 'k solver = fun e ->
   let solution =
     match Simplify.reduce e with
     | Simplify.Contradiction -> Solution.Unsat
-    | Simplify.Reduced { residual ; extracted } ->
+    | Solved model -> Sat model
+    | Reduced { residual ; extracted } ->
       Solution.merge
         (Solution.Sat extracted)
         (solve_trivial (direct_solve (module Oracle)) residual)

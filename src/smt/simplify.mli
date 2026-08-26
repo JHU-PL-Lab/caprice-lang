@@ -1,6 +1,7 @@
 (** A satisfiability-preserving reduction of a formula. *)
 type 'k reduction =
   | Contradiction
+  | Solved of 'k Model.t
   | Reduced of
       { residual : (bool, 'k) Formula.t
       ; extracted : 'k Model.t
