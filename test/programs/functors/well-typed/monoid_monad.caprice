@@ -23,9 +23,7 @@ end = fun X M -> struct
   let neutral = M.return X.t X.neutral
   let combine a_m b_m =
     let bind = M.bind X.t X.t in
-    bind a_m (fun a ->
-      bind b_m (fun b ->
-        M.return X.t (X.combine a b)
-      )
-    )
+    let.bind a = a_m in
+    let.bind b = b_m in
+    M.return X.t (X.combine a b)
 end

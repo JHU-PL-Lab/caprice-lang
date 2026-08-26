@@ -211,25 +211,20 @@ let set_ref ref_id t v =
   )
 
 let new_ref t v =
-  bind read (fun s ->
-    let new_id = s.next_id in
-    bind (modify State.incr_id) (fun _ ->
-      bind (set_ref new_id t v) (fun _ ->
-        return new_id
-      )
-    )
-  )
+  let.bind s = read in
+  let new_id = s.next_id in
+  let.bind _ = modify State.incr_id in
+  let.map _ = set_ref new_id t v in
+  new_id
 
 let res : { i : int | i == 10 } =
   run (
-    bind (new_ref int 2) (fun ref0_id ->
-    bind (new_ref int 3) (fun ref1_id ->
-    bind (deref ref0_id) (fun rev0_v ->
-
-    let ref0_new = rev0_v * 3 + 1 in
-    bind (set_ref ref0_id int ref0_new) (fun _ ->
-
-    bind (deref ref1_id) (fun ref1_v ->
-    bind (deref ref0_id) (fun ref0_v ->
-    return (ref0_v + ref1_v) (* error idea: forgot parentheses here *)
-  )))))))
+    let.bind id0 = new_ref int 2 in
+    let.bind id1 = new_ref int 3 in
+    let.bind v0 = deref id0 in
+    let new0 = v0 * 3 + 1 in
+    let.bind _ = set_ref id0 int new0 in
+    let.bind v1 = deref id1 in
+    let.map v0 = deref id0 in
+    v0 + v1
+  )

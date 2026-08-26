@@ -63,13 +63,12 @@ let is_balanced x =
     match x with
     | `Leaf () -> `Some 0
     | `Node node ->
-       bind (get_height node.left) (fun left_height ->
-        bind (get_height node.right) (fun right_height ->
-          if abs (left_height - right_height) < 2
-          then `Some (max left_height right_height + 1)
-          else `None ()
-        )
-       )
+      let.bind left_height = get_height node.left in
+      let.bind right_height = get_height node.right in
+      if abs (left_height - right_height) < 2 then
+        `Some (max left_height right_height + 1)
+      else
+        `None ()
     end
   in
   match get_height x with
