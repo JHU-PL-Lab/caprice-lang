@@ -36,15 +36,9 @@ let solve_trivial : 'k simplifier = fun solve expr ->
   | Binop (Less_than_eq, Key (I _ as k), Key (I _ as k')) ->
     Solution.merge (assign 0 k) (assign 1 k')
   | Binop (Equal, Key k, Key k') ->
-    begin match k, k' with
-    | I _, I _ -> Solution.merge (assign 0 k) (assign 0 k')
-    | B _, B _ -> Solution.merge (assign true k) (assign true k')
-    end
+    Solution.merge (assign 0 k) (assign 0 k')
   | Not Binop (Equal, Key k, Key k') ->
-    begin match k, k' with
-    | I _, I _ -> Solution.merge (assign 0 k) (assign 1 k')
-    | B _, B _ -> Solution.merge (assign true k) (assign false k')
-    end
+    Solution.merge (assign 0 k) (assign 1 k')
   | _ ->
     solve expr
 

@@ -78,6 +78,11 @@ let rec linearize formula =
     Formula.not_ (linearize inner)
   | formula -> formula
 
+(* Decorator to assert that linearization does nothing *)
+let linearize formula =
+  assert (Formula.equal formula (linearize formula));
+  formula
+
 (* Raised when any bound is unsatisfiable. *)
 exception Unsat
 
