@@ -156,11 +156,9 @@ let rec mapM (dep M : MONAD) (type a b) (f : a -> M.m b) (ls : list a) : M.m (li
   match ls with
   | [] -> M.return (list b) []
   | x::xs ->
-    M.bind b (list b) (f x) (fun y ->
-      M.bind (list b) (list b) (mapM M a b f xs) (fun ys ->
-        M.return (list b) (y :: ys)
-      )
-    )
+    let.(M.bind b        (list b)) y = f x in
+    let.(M.bind (list b) (list b)) ys = mapM M a b f xs in
+    M.return (list b) (y :: ys)
   end
 
 (* Examples from the OCaml manual section 12.5, some of which OCaml cannot typecheck *)

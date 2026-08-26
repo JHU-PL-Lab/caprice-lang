@@ -161,50 +161,41 @@ let typecheck e =
     | `Int i -> Result.return Type.type_int
     (* Functions *)
     | `Function f ->
-      Result.bind (typecheck f.body (add_to_env gamma f.id f.typ)) (fun tau ->
-        Result.return (`TArrow (f.typ, tau))
-      )
+      let.Result.bind tau = typecheck f.body (add_to_env gamma f.id f.typ) in
+      Result.return (`TArrow (f.typ, tau))
     | `Appl (func, arg) ->
-      Result.bind (tc func) (fun res ->
-        match res with
-        | `TArrow (dom, cod) ->
-          Result.bind (tc arg) (fun tau_arg ->
-            if Type.eq dom tau_arg
-            then Result.return cod
-            else Result.error
-          )
-        | _ -> Result.error
-        end
-      )
+      let.Result.bind res = tc func in
+      match res with
+      | `TArrow (dom, cod) ->
+        let.Result.bind tau_arg = tc arg in
+        if Type.eq dom tau_arg then
+          Result.return cod
+        else
+          Result.error
+      | _ -> Result.error
+      end
     (* Conditions *)
     | `If_then_else (cond, true_, false_) ->
-      Result.bind (tc cond) (fun tau_cond ->
-        if Type.is_int tau_cond
-        then
-          Result.bind (tc true_) (fun tau_left ->
-            Result.bind (tc false_) (fun tau_right ->
-              if Type.eq tau_left tau_right
-              then Result.return tau_left
-              else Result.error
-            )
-          )
-        else Result.error
-      )
+      let.Result.bind tau_cond = tc cond in
+      if Type.is_int tau_cond then
+        let.Result.bind tau_left = tc true_ in
+        let.Result.bind tau_right = tc false_ in
+        if Type.eq tau_left tau_right then
+          Result.return tau_left
+        else
+          Result.error
+      else
+        Result.error
     (* Simple expressions *)
     | `Plus (a, b)
     | `Minus (a, b)
     | `Equal (a, b) ->
-      Result.bind (tc a) (fun tau_left ->
-        Result.bind (tc b) (fun tau_right ->
-          if
-            Type.is_int tau_left
-            && Type.is_int tau_right
-          then
-            Result.return Type.type_int
-          else
-            Result.error
-        )
-      )
+      let.Result.bind tau_left = tc a in
+      let.Result.bind tau_right = tc b in
+      if Type.is_int tau_left && Type.is_int tau_right then
+        Result.return Type.type_int
+      else
+        Result.error
     end
   in
   (* default environment is empty, so it is error given any id *)

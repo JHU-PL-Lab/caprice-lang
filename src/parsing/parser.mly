@@ -137,6 +137,18 @@ expr:
     { mk_curried_fun params body }
   | stmt=statement IN body=expr %prec prec_let
     { ELet { stmt ; body } }
+  | LET DOT func=primary_expr param=l_ident EQUALS defn=expr IN body=expr %prec prec_let
+    /*
+      Let-sugar, desugared in-place,
+        let.e x = e' in e''
+          ===
+        e e' (fun x -> e'')
+      For example
+        let.Result.bind x = e in e'
+          ===
+        Result.bind e (fun x -> e')
+    */
+    { EAppl { func = EAppl { func ; arg = defn } ; arg = EFunction { param ; body } } }
   | MATCH subject=expr WITH ioption(PIPE) patterns=match_expr_list END
     { EMatch { subject ; patterns } }
   ;

@@ -21,3 +21,13 @@ let rec mapM (dep M : MONAD) (type a b) (f : a -> b) (ls : list a) : M.m (list b
       )
     )
   end
+
+let rec mapM (dep M : MONAD) (type a b) (f : a -> b) (ls : list a) : M.m (list b) =
+  match ls with
+  | [] -> M.return (list b) []
+  | x::xs ->
+    (* ERROR: (f x) is not in the monad *)
+    let.(M.bind b        (list b)) y = f x in
+    let.(M.bind (list b) (list b)) ys = mapM M a b f xs in
+    M.return (list b) (y :: ys)
+  end
