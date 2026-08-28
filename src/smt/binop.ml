@@ -33,7 +33,8 @@ let poly_equal (type a b) (x : a t) (y : b t) : bool =
   | Modulus, Modulus
   | Less_than, Less_than
   | Less_than_eq, Less_than_eq
-  | Equal, Equal -> true
+  | Equal, Equal
+  | Iff, Iff -> true
   | _ -> false
 
 let to_arithmetic (type a b) (binop : (a * a * b) t) : a -> a -> b =
