@@ -1,13 +1,13 @@
 open Lang.Ast
 
 let compute_check_pos (stmts_with_pos : program_with_pos)
-    (changes : Protocol.range list) : pos_span option =
+    (changes : Protocol.range list) : Utils.Pos.Span.t option =
   match changes with
   | [] -> None
   | first_change :: _ ->
     let target = first_change.start_pos in
     let contains_target span =
-      let stmt_end = Positions.of_lexing span.ends in
+      let stmt_end = Positions.of_lexing span.Utils.Pos.Span.ends in
       Positions.geq stmt_end target
     in
     let rec find = function

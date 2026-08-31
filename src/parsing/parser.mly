@@ -38,8 +38,8 @@
 %nonassoc TYPE
 %nonassoc IDENTIFIER
 
-%start <statement list> prog
-%start <statement_with_pos list> prog_with_pos
+%start <program> prog
+%start <program_with_pos> prog_with_pos
 
 %%
 
@@ -80,7 +80,7 @@ statement:
 
 statement_with_pos:
   | s=statement
-    { (s, { begins = $startpos ; ends = $endpos } ) }
+    { let begins, ends = $loc in s, { Utils.Pos.Span.begins ; ends } }
 
 %inline binding:
   | name=l_ident COLON typ=expr

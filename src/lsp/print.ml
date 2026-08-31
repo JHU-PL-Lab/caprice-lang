@@ -1,4 +1,4 @@
-let format_span (span : Lang.Ast.pos_span) =
+let format_span (span : Utils.Pos.Span.t) =
   let b = Positions.of_lexing span.begins
   and e = Positions.of_lexing span.ends in
   Printf.sprintf "%d:%d:%d:%d" b.line b.character e.line e.character

@@ -6,11 +6,11 @@ let splay_check ~options pgm =
 let normal_check ~options pgm =
   M.begin_ceval ~print_outcome:false ~options:{ options with splay = Never_splay } pgm
 
-let handle_fallback ~options ~refinement_positions (span : Lang.Ast.pos_span)
-  pgm stripped_pgm : Scheduler.r =
-  let refinement_positions = List.filter
-    (fun (p : Lang.Ast.pos_span) -> p.begins.pos_cnum <= span.ends.pos_cnum)
-    refinement_positions
+let handle_fallback ~options ~refinement_positions span pgm stripped_pgm =
+  let refinement_positions =
+    List.filter (fun p ->
+      p.Utils.Pos.Span.begins.pos_cnum <= span.Utils.Pos.Span.ends.pos_cnum
+    ) refinement_positions
   in
   begin match splay_check ~options pgm with
   | Grammar.Answer.Found_error msg ->
@@ -64,7 +64,7 @@ let find_baseline_error ~options stmts_with_pos =
   in
   match baseline with
   | Grammar.Answer.Found_error _ ->
-    let min_pos_span = { Lang.Ast.begins = Lexing.dummy_pos ; ends = Lexing.dummy_pos } in
+    let min_pos_span = Utils.Pos.Span.dummy in
     Stmt_check.mk_pgms all_disabled ~start_pos:min_pos_span
     |> List.find_map (fun (span, pgm) ->
       match Concolic.Loop.begin_ceval ~print_outcome:false ~options pgm with

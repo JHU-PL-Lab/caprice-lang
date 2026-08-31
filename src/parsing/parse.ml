@@ -47,11 +47,11 @@ include Make (struct
 end)
 
 module Positioned = Make (struct
-  type result = Lang.Ast.statement_with_pos list
+  type result = Lang.Ast.program_with_pos
   let entry_point = Default.prog_with_pos
 end)
 
-let parse_stripped (input : string) : Lang.Ast.statement_with_pos list * Lang.Ast.pos_span list =
+let parse_stripped (input : string) : Lang.Ast.program_with_pos * Utils.Pos.Span.t list =
   let module Ignore = Param.Make_ignore_refine () in
   let module Stripped_parser = Parser.Make (Ignore) in
   let module Stripped_parse = Make (struct

@@ -17,5 +17,5 @@ let parse_changes (s : string) : Lsp.Protocol.range list =
     { Lsp.Protocol.start_pos ; end_pos }
   ) (parse_positions s)
 
-let parse_spans_from_file (filename : string) : Lang.Ast.pos_span list =
+let parse_spans_from_file (filename : string) : Utils.Pos.Span.t list =
   List.map snd (Parsing.Parse.Positioned.parse_file filename)

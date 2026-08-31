@@ -69,7 +69,7 @@ let positions_test filename env =
   let actual =
     filename
     |> Parsing.Parse.Positioned.parse_file
-    |> List.map (fun (_statement, { Lang.Ast.begins ; ends }) ->
+    |> List.map (fun (_statement, { Utils.Pos.Span.begins ; ends }) ->
         (Lsp.Positions.of_lexing begins, Lsp.Positions.of_lexing ends))
   in
   expected = actual

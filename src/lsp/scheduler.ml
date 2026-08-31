@@ -8,16 +8,16 @@ type r =
   | Done
   | Cont of (unit, r) Effect.Deep.continuation
   | Spawn of work_item list
-  | Cancel_peers of Lang.Ast.pos_span
+  | Cancel_peers of Utils.Pos.Span.t
 
 and work_item =
-  { span : Lang.Ast.pos_span
+  { span : Utils.Pos.Span.t
   ; task : unit -> r
   }
 
 let round_robin (fs : work_item list) : unit =
   let run_q = Queue.of_seq (List.to_seq fs) in
-  let cancelled : (Lang.Ast.pos_span, unit) Hashtbl.t = Hashtbl.create 16 in
+  let cancelled : (Utils.Pos.Span.t, unit) Hashtbl.t = Hashtbl.create 16 in
   let is_cancelled span = Hashtbl.mem cancelled span in
   let enqueue item = Queue.push item run_q in
   let enqueue_cont span k =
