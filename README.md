@@ -4,7 +4,7 @@ This project implements the Caprice programming language.
 
 Caprice is a semantically typed functional language with types as values.
 
-<img src="./docs/caprice.gif" width="30%" height="30%" />
+<img src="./docs/caprice.gif" width="45%" height="45%" />
 
 ## Installation
 
