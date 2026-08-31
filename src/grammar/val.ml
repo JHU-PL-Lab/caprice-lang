@@ -131,7 +131,7 @@ let rec intensional_equal (x : any) (y : any) : Comparator.t =
   | Any VInt (i1, s1), Any VInt (i2, s2) ->
     (i1 = i2, Formula.binop Smt.Binop.Equal s1 s2)
   | Any VBool (b1, s1), Any VBool (b2, s2) ->
-    (b1 = b2, Formula.binop Smt.Binop.Equal s1 s2)
+    (b1 = b2, Formula.binop Smt.Binop.Iff s1 s2)
   (* propagate equality *)
   | Any VVariant v1, Any VVariant v2 ->
     let= () = Variant.Label.equal v1.label v2.label in

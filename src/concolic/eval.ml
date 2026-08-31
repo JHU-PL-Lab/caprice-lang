@@ -264,14 +264,14 @@ let eval
         (* The short-circuiting is effectively a branch, so log the formula *)
         let* () =
           push_formula_to_path ~max_step
-            (Smt.Formula.binop Equal s (Smt.Formula.const_bool b))
+            (Smt.Formula.binop Iff s (Smt.Formula.const_bool b))
         in
         return vleft
       | Any VBool (b, s) ->
         (* Need to evaluate RHS here *)
         let* () =
           push_formula_to_path ~max_step
-            (Smt.Formula.binop Equal s (Smt.Formula.const_bool b))
+            (Smt.Formula.binop Iff s (Smt.Formula.const_bool b))
         in
         let* vright = force_eval right in
         begin match vright with
@@ -293,7 +293,7 @@ let eval
       | BMinus      , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_int (n1 - n2)) e1 e2 Minus
       | BTimes      , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_int (n1 * n2)) e1 e2 Times
       | BEqual      , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 = n2)) e1 e2 Equal
-      | BEqual      , Any VBool (b1, e1), Any VBool (b2, e2) -> k (v_bool (b1 = b2)) e1 e2 Equal
+      | BEqual      , Any VBool (b1, e1), Any VBool (b2, e2) -> k (v_bool (b1 = b2)) e1 e2 Iff
       | BNeq        , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 <> n2)) e1 e2 Not_equal
       | BLessThan   , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 < n2)) e1 e2 Less_than
       | BLeq        , Any VInt (n1, e1) , Any VInt (n2, e2)  -> k (v_bool (n1 <= n2)) e1 e2 Less_than_eq

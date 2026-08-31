@@ -19,6 +19,17 @@ module type S = sig
 end
 
 module T : sig
+  (*
+    Integer expressions are kept in constant-offset normal form if possible,
+    where the symbolic expression is on the left.
+
+    E.g. If we have `e + c`, we know `e` is not in this normal form, or else it
+    could have been `(e' + a) + c` for some constant `a`, and therefore would be
+    `e' + (a + c)`. This is not a complete affine representation: `e` may be a
+    non-linear term.
+
+    The invariant is that a best-attempt linearization has been done already.
+  *)
   type (_, 'k) t = private
     | Const_int : int -> (int, 'k) t
     | Const_bool : bool -> (bool, 'k) t
@@ -66,83 +77,7 @@ end = struct
     | Const_int _ | Const_bool _ -> true
     | Key _ | Not _ | And _ | Binop _ -> false
 
-  let rec binop
-    : type a b c. (a * a * b, c) Binop.c -> (a, 'k) t -> (a, 'k) t -> (b, 'k) t
-    = fun op x y ->
-    match op with
-    | Or ->
-      begin match x, y with
-      | Const_bool true, _ | _, Const_bool true -> Const_bool true
-      | Const_bool false, e | e, Const_bool false -> e
-      | e1, e2 -> Binop (Or, e1, e2)
-      end
-    | Equal ->
-      begin match x, y with
-      | Const_bool true, e -> e
-      | e, Const_bool true -> e
-      | Const_bool false, e -> not_ e
-      | e, Const_bool false -> not_ e
-      | Const_int _, Key _ -> Binop (Equal, y, x)
-      | Const_int i1, Const_int i2 -> Const_bool (i1 = i2)
-      | e1, e2 when equal e1 e2 -> true_
-      | e1, e2 -> Binop (Equal, e1, e2)
-      end
-    | Not_equal -> not_ (binop Equal x y)
-    | Plus ->
-      begin match x, y with
-      | e, Const_int 0
-      | Const_int 0, e -> e
-      | Const_int i1, Const_int i2 -> Const_int (i1 + i2)
-      | e1, e2 -> Binop (Plus, e1, e2)
-      end
-    | Minus ->
-      begin match x, y with
-      | e, Const_int 0 -> e
-      | Const_int i1, Const_int i2 -> Const_int (i1 - i2)
-      | e1, e2 -> Binop (Minus, e1, e2)
-      end
-    | Times ->
-      begin match x, y with
-      | e, Const_int 1
-      | Const_int 1, e -> e
-      | Const_int i1, Const_int i2 -> Const_int (i1 * i2)
-      | e1, e2 -> Binop (Times, e1, e2)
-      end
-    | Divide ->
-      begin match x, y with
-      | e, Const_int 1 -> e
-      | Const_int i1, Const_int i2 -> Const_int (i1 / i2)
-      | e1, e2 -> Binop (Divide, e1, e2)
-      end
-    | Modulus ->
-      begin match x, y with
-      | Const_int i1, Const_int i2 -> Const_int (i1 mod i2)
-      | e1, e2 -> Binop (Modulus, e1, e2)
-      end
-    | Less_than ->
-      begin match x, y with
-      | Const_int i1, Const_int i2 -> Const_bool (i1 < i2)
-      | e1, e2 -> if equal e1 e2 then false_ else Binop (Less_than, e1, e2)
-      end
-    | Less_than_eq ->
-      begin match x, y with
-      | Const_int i1, Const_int i2 -> Const_bool (i1 <= i2)
-      | e1, e2 -> if equal e1 e2 then true_ else Binop (Less_than_eq, e1, e2)
-      end
-    | Greater_than ->
-      begin match x, y with
-      | Const_int i1, Const_int i2 -> Const_bool (i1 > i2)
-      (* Note that we will change greater-than to less-than *)
-      | e1, e2 -> if equal e1 e2 then false_ else Binop (Less_than, e2, e1)
-      end
-    | Greater_than_eq ->
-      begin match x, y with
-      | Const_int i1, Const_int i2 -> Const_bool (i1 >= i2)
-      (* Note that we will change greater-than-eq to less-than-eq *)
-      | e1, e2 -> if equal e1 e2 then true_ else Binop (Less_than_eq, e2, e1)
-      end
-
-  and not_ (e : (bool, 'k) t) : (bool, 'k) t =
+  let not_ (e : (bool, 'k) t) : (bool, 'k) t =
     match e with
     | Const_bool b -> Const_bool (not b)
     | Not e' -> e'
@@ -152,10 +87,108 @@ end = struct
     | Binop (Less_than_eq, e1, e2) ->
       (* not (e1 <= e2) = (e2 < e1) *)
       Binop (Less_than, e2, e1)
-    | Binop (Or, e1, e2) -> and_ [ not_ e1 ; not_ e2 ] (* it's easier in general to work with "and" *)
     | _ -> Not e
 
-  and and_ (e_ls : (bool, 'k) t list) : (bool, 'k) t =
+  let mk_compare (bop : Binop.iib Binop.t) cmp left right =
+    match left, right with
+    | Const_int i1, Const_int i2 ->
+      Const_bool (cmp i1 i2)
+    | Binop (Plus, e, Const_int a), Const_int b ->
+      Binop (bop, e, Const_int (b - a))
+    | Const_int b, Binop (Plus, e, Const_int a) ->
+      Binop (bop, Const_int (b - a), e)
+    | Binop (Plus, e, Const_int a), Binop (Plus, e', Const_int b) when equal e e' ->
+      Const_bool (cmp a b)
+    | e, Binop (Plus, (e' : (int, 'k) t), Const_int b) when equal e e' ->
+      Const_bool (cmp 0 b)
+    | Binop (Plus, (e : (int, 'k) t), Const_int a), e' when equal e e' ->
+      Const_bool (cmp a 0)
+    | e1, e2 ->
+      Binop (bop, e1, e2)
+
+  let rec binop
+    : type a b c. (a * a * b, c) Binop.c -> (a, 'k) t -> (a, 'k) t -> (b, 'k) t
+    = fun op left right ->
+    match op with
+    | Iff ->
+      begin match left, right with
+      | Const_bool true, e -> e
+      | e, Const_bool true -> e
+      | Const_bool false, e -> not_ e
+      | e, Const_bool false -> not_ e
+      | _ -> if equal left right then true_ else Binop (Iff, left, right)
+      end
+    | Equal ->
+      if equal left right then true_ else
+      begin match mk_compare Equal (=) left right with
+      | Binop (Equal, (Const_int _ as x), (Key _ as y)) ->
+        Binop (Equal, y, x) (* always put keys on the left *)
+      | other -> other
+      end
+    | Not_equal -> not_ (binop Equal left right)
+    | Plus ->
+      begin match left, right with
+      (* short circuits *)
+      | e, Const_int 0
+      | Const_int 0, e -> e
+      (* affine *)
+      | Const_int x, Const_int y ->
+        Const_int (x + y)
+      | Binop (Plus, (e : (int, 'k) t), Const_int a), Const_int b
+      | Const_int b, Binop (Plus, (e : (int, 'k) t), Const_int a) ->
+        (* (e + a) + b and b + (e + a) become e + (a + b) *)
+        Binop (Plus, e, Const_int (a + b))
+      (* not necessarily affine *)
+      | Const_int _ as a, e ->
+        (* a + e becomes e + a -- always put constant expression on the right *)
+        Binop (Plus, e, a)
+      | e1, e2 -> Binop (Plus, e1, e2)
+      end
+    | Minus ->
+      begin match left, right with
+      (* short circuit *)
+      | e, Const_int 0 -> e
+      (* affine *)
+      | Const_int x, Const_int y ->
+        Const_int (x - y)
+      | Binop (Plus, (e : (int, 'k) t), Const_int a), Const_int b ->
+        (* (e + a) - b becomes e + (a - b) *)
+        Binop (Plus, e, Const_int (a - b))
+      (* not necessarily affine *)
+      | e, Const_int a ->
+        Binop (Plus, e, Const_int (-a))
+      | e1, e2 -> Binop (Minus, e1, e2)
+      end
+    | Times ->
+      begin match left, right with
+      | e, Const_int 1
+      | Const_int 1, e -> e
+      | Const_int i1, Const_int i2 -> Const_int (i1 * i2)
+      | e1, e2 -> Binop (Times, e1, e2)
+      end
+    | Divide ->
+      begin match left, right with
+      | e, Const_int 1 -> e
+      | Const_int i1, Const_int i2 -> Const_int (i1 / i2)
+      | e1, e2 -> Binop (Divide, e1, e2)
+      end
+    | Modulus ->
+      begin match left, right with
+      | Const_int i1, Const_int i2 -> Const_int (i1 mod i2)
+      | e1, e2 -> Binop (Modulus, e1, e2)
+      end
+    | Less_than ->
+      if equal left right then false_ else
+      mk_compare Less_than (<) left right
+    | Less_than_eq ->
+      if equal left right then true_ else
+      mk_compare Less_than_eq (<=) left right
+    | Greater_than ->
+      binop Less_than right left
+    | Greater_than_eq ->
+      binop Less_than_eq right left
+
+  let rec and_ (e_ls : (bool, 'k) t list) : (bool, 'k) t =
     match e_ls with
     | [] -> true_ (* vacuous truth *)
     | [ e ] -> e

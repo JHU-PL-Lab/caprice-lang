@@ -36,15 +36,9 @@ let solve_trivial : 'k simplifier = fun solve expr ->
   | Binop (Less_than_eq, Key (I _ as k), Key (I _ as k')) ->
     Solution.merge (assign 0 k) (assign 1 k')
   | Binop (Equal, Key k, Key k') ->
-    begin match k, k' with
-    | I _, I _ -> Solution.merge (assign 0 k) (assign 0 k')
-    | B _, B _ -> Solution.merge (assign true k) (assign true k')
-    end
+    Solution.merge (assign 0 k) (assign 0 k')
   | Not Binop (Equal, Key k, Key k') ->
-    begin match k, k' with
-    | I _, I _ -> Solution.merge (assign 0 k) (assign 1 k')
-    | B _, B _ -> Solution.merge (assign true k) (assign false k')
-    end
+    Solution.merge (assign 0 k) (assign 1 k')
   | _ ->
     solve expr
 
@@ -60,7 +54,8 @@ let main_solve (module Oracle : SOLVABLE) : 'k solver = fun e ->
   let solution =
     match Simplify.reduce e with
     | Simplify.Contradiction -> Solution.Unsat
-    | Simplify.Reduced { residual ; extracted } ->
+    | Solved model -> Sat model
+    | Reduced { residual ; extracted } ->
       Solution.merge
         (Solution.Sat extracted)
         (solve_trivial (direct_solve (module Oracle)) residual)

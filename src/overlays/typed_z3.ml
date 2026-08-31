@@ -46,9 +46,8 @@ module Make_of_context (C : CONTEXT) : Solve.SOLVABLE = struct
     | Less_than_eq    -> Z3.Arithmetic.mk_le ctx
     | Greater_than    -> Z3.Arithmetic.mk_gt ctx
     | Greater_than_eq -> Z3.Arithmetic.mk_ge ctx
-    | Equal           -> Z3.Boolean.mk_eq ctx
+    | Equal | Iff     -> Z3.Boolean.mk_eq ctx
     | Not_equal       -> fun a b -> not_ (Z3.Boolean.mk_eq ctx a b)
-    | Or              -> list_curry @@ Z3.Boolean.mk_or ctx
     (* OCaml division and modulus differ from Z3, so we need some extra encoding *)
     | Divide -> fun x y ->
       let q_div = Z3.Arithmetic.mk_div ctx x y
@@ -58,11 +57,11 @@ module Make_of_context (C : CONTEXT) : Solve.SOLVABLE = struct
           (binop Greater_than y zero)
           (binop Plus q_div one)
           (binop Minus q_div one)
+      and cond =
+        Z3.Boolean.mk_or ctx
+          [ binop Equal q_mod zero ; binop Greater_than_eq x zero ]
       in
-      Z3.Boolean.mk_ite ctx
-        (binop Or (binop Equal q_mod zero) (binop Greater_than_eq x zero))
-        q_div
-        adjusted
+      Z3.Boolean.mk_ite ctx cond q_div adjusted
     | Modulus -> fun x y ->
       binop Minus x (binop Times y (binop Divide x y))
 

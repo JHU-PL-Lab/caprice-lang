@@ -1,5 +1,6 @@
 type 'k reduction =
   | Contradiction
+  | Solved of 'k Model.t
   | Reduced of
       { residual : (bool, 'k) Formula.t
       ; extracted : 'k Model.t
@@ -25,15 +26,10 @@ let find_first_binding formula =
   | formula -> binding_from_formula formula
 
 let reduce formula =
-  let rec loop extracted residual =
-    let residual =
-      residual
-      |> Ints.linearize
-      |> Ints.tighten_bounds
-    in
-    match residual with
+  let rec loop extracted rem =
+    match Ints.tighten_bounds rem with
     | Formula.Const_bool false -> Contradiction
-    | Formula.Const_bool true -> Reduced { residual ; extracted }
+    | Formula.Const_bool true -> Solved extracted
     | residual ->
       begin match find_first_binding residual with
       | None -> Reduced { residual ; extracted }
