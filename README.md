@@ -4,38 +4,7 @@ This project implements the Caprice programming language.
 
 Caprice is a semantically typed functional language with types as values.
 
-```ocaml
-(* types are values. pos_int is a type value *)
-let pos_int : type = { i : int | i > 0 }
-
-(* modules are first class values *)
-let Collection : sig
-  (* t is a function on types *)
-  val t : type -> type
-  (* provided any type, empty is the empty collection of values of that type *)
-  val empty : (type a) -> t a
-  val add : (type a) -> a -> t a -> t a
-end = struct
-  (* list is a function on types *)
-  let t = list
-  (* the empty collection can ignore its type argument *)
-  let empty _ = []
-  let add _ a c = a :: c
-end
-
-(* the return type of factors depends on the argument n *)
-let factors (dep n : pos_int) (* hence n is marked dep for "dependent" *)
-  : Collection.t { m : pos_int | n % m == 0 } = (* return a collection of n's positive divisors *)
-  let rec factors (dep i : pos_int) : Collection.t { k : int | k >= i && n % k == 0 } =
-    if i > n then
-      Collection.empty int (* return the empty collection of integers *)
-    else if n % i == 0 then
-      Collection.add int i (factors (i + 1))
-    else
-      factors (i + 1)
-  in
-  factors 1
-```
+<img src="./docs/caprice.gif" width="30%" height="30%" />
 
 ## Installation
 
