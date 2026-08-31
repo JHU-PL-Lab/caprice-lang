@@ -12,10 +12,10 @@ let compute_check_pos (stmts_with_pos : program_with_pos)
     in
     let rec find = function
       | [] -> None
-      | (_, span) :: [] -> Some span
-      | (_, prev_span) :: ((_, next_span) :: _ as tl) ->
-        if contains_target next_span then
-          Some prev_span
+      | (_, pos) :: [] -> Some pos.full
+      | (_, prev_pos) :: ((_, next_pos) :: _ as tl) ->
+        if contains_target next_pos.full then
+          Some prev_pos.full
         else
           find tl
     in

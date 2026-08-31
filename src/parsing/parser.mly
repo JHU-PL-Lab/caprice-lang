@@ -5,6 +5,10 @@
   open Tools
 
   let default_mode = Funtype.Det
+
+  let pos (begins, ends) (begins', ends') =
+    { full = { begins ; ends }
+    ; small = { begins = begins' ; ends = ends' } }
 %}
 
 %parameter<Param : Param.S>
@@ -53,23 +57,29 @@ prog_with_pos:
     { $1 }
   ;
 
-statement:
+statement_with_pos:
   | LET b=binding EQUALS defn=expr
-    { SLet { name = fst b ; annot = snd b ; defn } }
+    { SLet { name = fst b ; annot = snd b ; defn }
+    , pos $loc $loc(b) }
   | LET name=l_ident params=l_ident+ EQUALS body=expr
-    { SLet { name ; annot = ANone ; defn = mk_curried_fun params body } }
+    { SLet { name ; annot = ANone ; defn = mk_curried_fun params body }
+    , pos $loc ($startpos(name), $endpos(params)) }
   | LET name=l_ident tparams=typed_params mode=returns body_type=expr EQUALS body=expr
     { SLet { name ; annot = AType { typ = (mk_curried_funtype tparams body_type mode) ; do_check = true }
-      ; defn = mk_curried_fun (extract_param_names tparams) body } }
+      ; defn = mk_curried_fun (extract_param_names tparams) body }
+    , pos $loc ($startpos(name), $endpos(body_type)) }
   | LET REC name=l_ident param=l_ident params=l_ident* EQUALS body=expr
-    { SLetRec { name ; annot = ANone ; param ; defn = mk_curried_fun params body } }
+    { SLetRec { name ; annot = ANone ; param ; defn = mk_curried_fun params body }
+    , pos $loc ($startpos(name), $endpos(params)) }
   | LET REC name=l_ident tparams=typed_params mode=returns body_type=expr EQUALS body=expr
     { SLetRec { name
       ; annot = AType { typ = (mk_curried_funtype tparams body_type mode) ; do_check = true }
       ; param = fst (List.hd tparams)
-      ; defn = mk_curried_fun (List.tl (extract_param_names tparams)) body } }
+      ; defn = mk_curried_fun (List.tl (extract_param_names tparams)) body }
+    , pos $loc ($startpos(name), $endpos(body_type)) }
   | LET REC b=binding EQUALS FUNCTION param=l_ident params=l_ident* ARROW body=expr
-    { SLetRec { name = fst b ; annot = snd b ; param ; defn = mk_curried_fun params body } }
+    { SLetRec { name = fst b ; annot = snd b ; param ; defn = mk_curried_fun params body }
+    , pos $loc ($startpos(b), $endpos(params)) }
   ;
 
 %inline returns:
@@ -78,9 +88,9 @@ statement:
   | COLON
     { default_mode }
 
-statement_with_pos:
-  | s=statement
-    { let begins, ends = $loc in s, { Utils.Pos.Span.begins ; ends } }
+statement:
+  | s=statement_with_pos
+    { fst s }
 
 %inline binding:
   | name=l_ident COLON typ=expr

@@ -48,7 +48,11 @@ and statement =
 
 type program = statement list
 
-type program_with_pos = (statement * Utils.Pos.Span.t) list
+(* full position, and then a smaller position that contains a representative
+  portion of the statement to be used in a warning, for example. *)
+type pos = { full : Utils.Pos.Span.t ; small : Utils.Pos.Span.t }
+
+type program_with_pos = (statement * pos) list
 
 let id_of_stmt = function
   | SLet { name ; _ }

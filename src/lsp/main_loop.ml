@@ -6,17 +6,17 @@ let splay_check ~options pgm =
 let normal_check ~options pgm =
   M.begin_ceval ~print_outcome:false ~options:{ options with splay = Never_splay } pgm
 
-let handle_fallback ~options ~refinement_positions span pgm unrefined_pgm =
+let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
   let refinement_positions =
     List.filter (fun p ->
-      p.Utils.Pos.Span.begins.pos_cnum <= span.Utils.Pos.Span.ends.pos_cnum
+      p.Utils.Pos.Span.begins.pos_cnum <= pos.Lang.Ast.full.ends.pos_cnum
     ) refinement_positions
   in
   begin match splay_check ~options pgm with
   | Grammar.Answer.Found_error msg ->
-    Print.print_splay_error span msg;
+    Print.print_splay_error pos.small msg;
     Scheduler.Spawn
-      [ { span
+      [ { loc = pos.full.begins
         ; task = fun () ->
             begin match splay_check ~options unrefined_pgm with
             | Grammar.Answer.Found_error _ -> ()
@@ -24,35 +24,35 @@ let handle_fallback ~options ~refinement_positions span pgm unrefined_pgm =
             end;
             Scheduler.Done
         }
-      ; { span
+      ; { loc = pos.full.begins
         ; task = fun () ->
             let a = normal_check ~options pgm in
-            Print.print_answer span a;
+            Print.print_answer pos a;
             begin match a with
             | Grammar.Answer.Found_error _ ->
-              List.iter Print.print_clear_refinement_warning refinement_positions;
-              Scheduler.Cancel_peers span
+              List.iter Print.print_clear_range refinement_positions;
+              Scheduler.Cancel_peers pos.full.begins
             | _ -> Scheduler.Done
             end
         }
       ]
   | answer ->
-    Print.print_answer span answer;
+    Print.print_answer pos answer;
     Scheduler.Done
   end
 
 let ceval_many ~(options : Concolic.Options.t) ~refinement_positions pgms unrefined_pgms =
   Scheduler.round_robin (
-    List.map2 (fun (span, pgm) (_, unrefined_pgm) ->
-      { Scheduler.span
+    List.map2 (fun (pos, pgm) (_, unrefined_pgm) ->
+      { Scheduler.loc = pos.Lang.Ast.full.begins
       ; task = fun () ->
-          Print.print_pending span;
+          Print.print_pending pos.small;
           match options.splay with
           | Fallback ->
-            handle_fallback ~options ~refinement_positions span pgm unrefined_pgm
+            handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm
           | _ ->
             let a = M.begin_ceval ~print_outcome:false ~options pgm in
-            Print.print_answer span a;
+            Print.print_answer pos a;
             Scheduler.Done
       }
     ) pgms unrefined_pgms
@@ -83,8 +83,8 @@ let run_typecheck ~(options : Concolic.Options.t) (packet : Protocol.checker_pac
       | Some (error_span, a) ->
         (* TODO: extend error message to say statements after this are unreachable *)
         let () = Print.print_answer error_span a in
-        fst (Stmt_check.split_on_pos stmts_with_pos error_span),
-        fst (Stmt_check.split_on_pos unrefined_stmts error_span)
+        fst (Stmt_check.split_on_pos stmts_with_pos error_span.full),
+        fst (Stmt_check.split_on_pos unrefined_stmts error_span.full)
     in
     let check_index = Range_check.compute_check_pos stmts_to_check packet.changes in
     begin match check_index with
