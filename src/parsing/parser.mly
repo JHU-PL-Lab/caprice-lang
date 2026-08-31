@@ -106,7 +106,10 @@ typed_param_group:
   | name=l_ident COLON typ=expr
     { name, typ }
   | name=l_ident COLON typ=expr PIPE pred=expr
-    { let t = Param.make_refinement name ~typ ~pred { begins = $startpos ; ends = $endpos } in
+    { let t =
+        let begins, ends = $loc(pred) in
+        Param.make_refinement name ~typ ~pred { begins ; ends }
+      in
       name, t }
   | name=l_ident COLON_EQUAL e=expr
     { name, ETypeSingle e }
@@ -294,7 +297,8 @@ op_expr:
     { ETypeRecord record }
   (* refinement type with binding for typ, which looks like a record type at first *)
   | OPEN_BRACE var=l_ident COLON typ=expr PIPE pred=expr CLOSE_BRACE
-    { Param.make_refinement var ~typ ~pred { begins = $startpos ; ends = $endpos } }
+    { let begins, ends = $loc(pred) in
+      Param.make_refinement var ~typ ~pred { begins ; ends } }
   ;
 
 %inline record_type_item:

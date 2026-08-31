@@ -151,12 +151,9 @@ export class DiagnosticsManager {
 
       case 'refinement_warning': {
         this.byStmt.set(rangeKey(msg.range) + ':refinement', {
-          range: {
-            start: msg.range.start,
-            end: { line: msg.range.start.line, character: msg.range.start.character + 1 },
-          },
-          message: 'Splay-checking failed because of refinement types',
-          severity: DiagnosticSeverity.Hint,
+          range: msg.range,
+          message: 'Splay-checking succeeds without refinement types',
+          severity: DiagnosticSeverity.Information,
           code: 'caprice.refinement',
         });
         this.flush(uri);
