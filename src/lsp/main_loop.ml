@@ -6,6 +6,18 @@ let splay_check ~options pgm =
 let normal_check ~options pgm =
   M.begin_ceval ~print_outcome:false ~options:{ options with splay = Never_splay } pgm
 
+(*
+  When splaying has failed, we then race two tasks:
+  1. Type splaying without any refinement types because refinement types are the
+      most common origin of incompleteness when splaying.
+  2. Type check the plain program without splaying.
+
+  If we find a type error, we need to cancel the unrefined splaying attempt, or
+  clear its output if it finished first.
+
+  If normal type checking times out, it is useful information to know that the
+  refinements are getting in the way of successfully type-splaying the program.
+*)
 let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
   let refinement_positions =
     List.filter (fun p ->
@@ -41,7 +53,12 @@ let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
     Scheduler.Done
   end
 
-let ceval_many ~(options : Concolic.Options.t) ~refinement_positions pgms unrefined_pgms =
+(*
+  Check all of the programs. Depending on options, this first tries to splay,
+  and then it falls back to non-splaying and also checking the unrefined
+  programs.
+*)
+let check_all ~(options : Concolic.Options.t) ~refinement_positions pgms unrefined_pgms =
   Scheduler.round_robin (
     List.map2 (fun (pos, pgm) (_, unrefined_pgm) ->
       { Scheduler.loc = pos.Lang.Ast.full.begins
@@ -58,6 +75,11 @@ let ceval_many ~(options : Concolic.Options.t) ~refinement_positions pgms unrefi
     ) pgms unrefined_pgms
   )
 
+(*
+  Find the first statement in the program that exhibits and error when all
+  top-level type annotations are distabled. Once this statement is found, all
+  statements after it are void.
+*)
 let find_baseline_error ~options stmts_with_pos =
   let all_disabled = Stmt_check.disable_all_checks stmts_with_pos in
   let baseline =
@@ -92,7 +114,7 @@ let run_typecheck ~(options : Concolic.Options.t) (packet : Protocol.checker_pac
     | Some start_pos ->
       let pgms = Stmt_check.mk_pgms stmts_to_check ~start_pos in
       let unrefined_pgms = Stmt_check.mk_pgms unrefined_to_check ~start_pos in
-      ceval_many ~options ~refinement_positions pgms unrefined_pgms
+      check_all ~options ~refinement_positions pgms unrefined_pgms
     end
   with
   | Parsing.Parse.Parse_error (_exn, line, col, tok) ->
