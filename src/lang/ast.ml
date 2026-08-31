@@ -46,20 +46,13 @@ and statement =
   | SLet of { name : Ident.t ; annot : annot ; defn : t }
   | SLetRec of { name : Ident.t ; annot : annot ; param : Ident.t ; defn : t }
 
-type pos_span = { begins : Lexing.position ; ends : Lexing.position }
-
-type statement_with_pos = statement * pos_span
-
 type program = statement list
 
-type program_with_pos = statement_with_pos list
+(* full position, and then a smaller position that contains a representative
+  portion of the statement to be used in a warning, for example. *)
+type pos = { full : Utils.Pos.Span.t ; small : Utils.Pos.Span.t }
 
-let compare_pos_span a b =
-  match Int.compare a.begins.pos_cnum b.begins.pos_cnum with
-  | 0 -> Int.compare a.ends.pos_cnum b.ends.pos_cnum
-  | cmp -> cmp
-
-let equal_pos_span a b = compare_pos_span a b = 0
+type program_with_pos = (statement * pos) list
 
 let id_of_stmt = function
   | SLet { name ; _ }

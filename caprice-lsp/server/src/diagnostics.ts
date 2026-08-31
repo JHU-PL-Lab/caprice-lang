@@ -34,8 +34,11 @@ function toSeverity(tag: OcamlMessage['tag']): DiagnosticSeverity | null {
   }
 }
 
+type SplayMarker = { range: Range; message: string };
+
 export class DiagnosticsManager {
-  private byStmt = new Map<string, Diagnostic>();
+  private byRange = new Map<string, Diagnostic>();
+  private splayMarkers = new Map<string, SplayMarker>();
   private pendingParseError: { diagnostic: Diagnostic; timer: NodeJS.Timeout } | null = null;
   private inFlight = new Map<string, { range: Range; timer: NodeJS.Timeout }>();
   private editLine = 0;
@@ -45,7 +48,14 @@ export class DiagnosticsManager {
   private flush(uri: string): void {
     this.connection.sendDiagnostics({
       uri,
-      diagnostics: Array.from(this.byStmt.values()),
+      diagnostics: Array.from(this.byRange.values()),
+    });
+  }
+
+  private flushSplay(uri: string): void {
+    this.connection.sendNotification('caprice/splayMarkers', {
+      uri,
+      markers: Array.from(this.splayMarkers.values()),
     });
   }
 
@@ -53,12 +63,13 @@ export class DiagnosticsManager {
     if (!this.pendingParseError) return;
     const { diagnostic } = this.pendingParseError;
     this.pendingParseError = null;
-    this.byStmt.set(rangeKey(diagnostic.range), diagnostic);
+    this.byRange.set(rangeKey(diagnostic.range), diagnostic);
     this.flush(uri);
   }
 
-  private invalidate(key: string, range: Range): void {
-    this.byStmt.delete(key);
+  private invalidate(range: Range): void {
+    const key = rangeKey(range);
+    this.byRange.delete(key);
     const entry = this.inFlight.get(key);
     if (entry !== undefined) { clearTimeout(entry.timer); this.inFlight.delete(key); }
     if (this.pendingParseError !== null &&
@@ -77,7 +88,7 @@ export class DiagnosticsManager {
         this.inFlight.set(key, {
           range: msg.range,
           timer: setTimeout(() => {
-            this.byStmt.set(key, {
+            this.byRange.set(key, {
               range: msg.range,
               message: 'checking...',
               severity: DiagnosticSeverity.Warning,
@@ -92,8 +103,8 @@ export class DiagnosticsManager {
         if (this.pendingParseError !== null) {
           clearTimeout(this.pendingParseError.timer);
         }
-        for (const [key, diag] of this.byStmt) {
-          if (diag.range.end.line >= this.editLine) this.byStmt.delete(key);
+        for (const [key, diag] of this.byRange) {
+          if (diag.range.end.line >= this.editLine) this.byRange.delete(key);
         }
         this.flush(uri);
         this.pendingParseError = {
@@ -108,8 +119,11 @@ export class DiagnosticsManager {
       case 'unknown':
       case 'exhausted_pruned': {
         const key = rangeKey(msg.range);
-        this.invalidate(key, msg.range);
-        if (msg.tag === 'error') this.byStmt.delete(key + ':splay');
+        this.invalidate(msg.range);
+        if (msg.tag === 'error') {
+          this.splayMarkers.delete(key);
+          this.flushSplay(uri);
+        }
         const severity = toSeverity(msg.tag)!;
         const diagnostic: Diagnostic = {
           range: msg.range,
@@ -118,43 +132,47 @@ export class DiagnosticsManager {
         };
 
         if (msg.tag === 'error' && msg.msg.includes('Unbound variable')) {
-          for (const [k, diag] of this.byStmt) {
-            if (diag.range.start.line >= msg.range.start.line) this.byStmt.delete(k);
+          for (const [k, diag] of this.byRange) {
+            if (diag.range.start.line >= msg.range.start.line) this.byRange.delete(k);
           }
         }
-        this.byStmt.set(key, diagnostic);
+        this.byRange.set(key, diagnostic);
         this.flush(uri);
         break;
       }
 
       case 'splay_error': {
-        const key = rangeKey(msg.range);
-        this.byStmt.set(key + ':splay', {
+        this.splayMarkers.set(rangeKey(msg.range), {
           range: msg.range,
           message: `Splay-checking failed: ${msg.msg}`,
-          severity: DiagnosticSeverity.Warning,
+        });
+        this.flushSplay(uri);
+        break;
+      }
+
+      case 'refinement_warning': {
+        this.byRange.set(rangeKey(msg.range), {
+          range: msg.range,
+          message: 'Splay-checking succeeds without refinement types',
+          severity: DiagnosticSeverity.Information,
+          code: 'caprice.refinement',
         });
         this.flush(uri);
         break;
       }
 
-      case 'refinement_warning': {
-        const key = rangeKey(msg.range);
-        this.byStmt.set(key + ':refinement', {
-          range: msg.range,
-          message: 'Splay-checking failed because of refinement types',
-          severity: DiagnosticSeverity.Warning,
-        });
+      case 'clear_range': {
+        this.invalidate(msg.range);
         this.flush(uri);
         break;
       }
 
       case 'ok': {
         const key = rangeKey(msg.range);
-        this.invalidate(key, msg.range);
-        this.byStmt.delete(key + ':splay');
-        this.byStmt.delete(key + ':refinement');
+        this.invalidate(msg.range);
+        this.splayMarkers.delete(key);
         this.flush(uri);
+        this.flushSplay(uri);
         break;
       }
     }
@@ -166,14 +184,20 @@ export class DiagnosticsManager {
       this.pendingParseError = null;
     }
     if (isNewDoc) {
-      this.byStmt.clear();
+      this.byRange.clear();
+      this.splayMarkers.clear();
       this.editLine = 0;
+      this.flushSplay(uri);
     } else {
       this.editLine = Math.min(...changes.map(c => c.start.line));
-      for (const [key, diag] of this.byStmt) {
-        if (diag.range.end.line >= this.editLine) this.byStmt.delete(key);
+      for (const [key, diag] of this.byRange) {
+        if (diag.range.end.line >= this.editLine) this.byRange.delete(key);
+      }
+      for (const [key, m] of this.splayMarkers) {
+        if (m.range.end.line >= this.editLine) this.splayMarkers.delete(key);
       }
       this.flush(uri);
+      this.flushSplay(uri);
     }
   }
 
@@ -184,7 +208,7 @@ export class DiagnosticsManager {
     }
     for (const [key, { range, timer }] of this.inFlight) {
       clearTimeout(timer);
-      this.byStmt.set(key, {
+      this.byRange.set(key, {
         range,
         message: 'timeout',
         severity: DiagnosticSeverity.Warning,

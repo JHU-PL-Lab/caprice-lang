@@ -67,10 +67,11 @@ let compute_typecheck_test filename env =
 let positions_test filename env =
   let expected = Position_checks.parse_positions (get_var env positions) in
   let actual =
-    filename
-    |> Parsing.Parse.Positioned.parse_file
-    |> List.map (fun (_statement, { Lang.Ast.begins ; ends }) ->
-        (Lsp.Positions.of_lexing begins, Lsp.Positions.of_lexing ends))
+    let pgm = Parsing.Parse.Positioned.parse_file filename in
+    List.map (fun (_statement, pos) ->
+      let full = pos.Lang.Ast.full in
+      (Lsp.Positions.of_lexing full.begins, Lsp.Positions.of_lexing full.ends)
+    ) pgm
   in
   expected = actual
 

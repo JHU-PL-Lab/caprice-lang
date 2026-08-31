@@ -1,7 +1,7 @@
 open Lang
 
 module type S = sig
-  val make_refinement : Ident.t -> typ:Ast.t -> pred:Ast.t -> Ast.pos_span -> Ast.t
+  val make_refinement : Ident.t -> typ:Ast.t -> pred:Ast.t -> Utils.Pos.Span.t -> Ast.t
 end
 
 module Standard : S = struct
@@ -10,10 +10,10 @@ module Standard : S = struct
 end
 
 module Make_ignore_refine () = struct
-  let refine_positions : Ast.pos_span list ref = ref []
+  let refine_positions : Utils.Pos.Span.t list ref = ref []
 
-  let make_refinement _var ~typ ~pred:_ pos =
-    refine_positions := pos :: !refine_positions;
+  let make_refinement _var ~typ ~pred:_ span =
+    refine_positions := span :: !refine_positions;
     typ
 
   let positions () = List.rev !refine_positions

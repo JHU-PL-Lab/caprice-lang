@@ -8,27 +8,27 @@ type r =
   | Done
   | Cont of (unit, r) Effect.Deep.continuation
   | Spawn of work_item list
-  | Cancel_peers of Lang.Ast.pos_span
+  | Cancel_peers of Utils.Pos.t
 
 and work_item =
-  { span : Lang.Ast.pos_span
+  { loc : Utils.Pos.t
   ; task : unit -> r
   }
 
 let round_robin (fs : work_item list) : unit =
   let run_q = Queue.of_seq (List.to_seq fs) in
-  let cancelled : (Lang.Ast.pos_span, unit) Hashtbl.t = Hashtbl.create 16 in
-  let is_cancelled span = Hashtbl.mem cancelled span in
+  let cancelled : (Utils.Pos.t, unit) Hashtbl.t = Hashtbl.create 16 in
+  let is_cancelled loc = Hashtbl.mem cancelled loc in
   let enqueue item = Queue.push item run_q in
-  let enqueue_cont span k =
-    enqueue { span ; task = fun () -> Effect.Deep.continue k () }
+  let enqueue_cont loc k =
+    enqueue { loc ; task = fun () -> Effect.Deep.continue k () }
   in
   let cancel s = Hashtbl.replace cancelled s () in
   let rec dequeue () =
     begin match Queue.take_opt run_q with
     | None -> ()
-    | Some { span ; task = _ } when is_cancelled span -> dequeue ()
-    | Some { span ; task } ->
+    | Some { loc ; task = _ } when is_cancelled loc -> dequeue ()
+    | Some { loc ; task } ->
       let r =
         try task () with
         | effect Pause, k -> Cont k
@@ -36,7 +36,7 @@ let round_robin (fs : work_item list) : unit =
       let () =
         match r with
         | Done -> ()
-        | Cont k -> enqueue_cont span k
+        | Cont k -> enqueue_cont loc k
         | Spawn children -> List.iter enqueue children
         | Cancel_peers s -> cancel s
       in
