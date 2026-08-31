@@ -1,0 +1,27 @@
+(* TEST
+  include exhaust;
+*)
+
+let pos_int : type = { i : int | i > 0 }
+
+let Collection : sig
+  val t : type -> type
+  val empty : (type a) -> t a
+  val add : (type a) -> a -> t a -> t a
+end = struct
+  let t = list
+  let empty _ = []
+  let add _ a c = a :: c
+end
+
+let factors (dep n : pos_int)
+  : Collection.t { m : pos_int | n % m == 0 } =
+  let rec factors (dep i : pos_int) : Collection.t { k : int | k >= i && n % k == 0 } =
+    if i > n then
+      Collection.empty int
+    else if n % i == 0 then
+      Collection.add int i (factors (i + 1))
+    else
+      factors (i + 1)
+  in
+  factors 1
