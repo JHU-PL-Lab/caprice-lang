@@ -225,10 +225,10 @@ let eval
     | ETypeFun { domain = None, typ ; codomain ; mode } ->
       let* dom_t = eval_type typ and> cod_t = eval_type codomain in
       return_any (VTypeFun { domain = dom_t ; codomain = CodValue cod_t ; mode })
-    | ETypeFun { domain = Some id, typ ; codomain ; mode } ->
-      let* dom_t = eval_type typ and> env = read in
-      return_any (VTypeFun { domain = dom_t ; mode
-        ; codomain = CodDependent (id, { captured = codomain ; env }) })
+    | ETypeFun { domain = Some id, typ ; codomain = captured ; mode } ->
+      let* domain = eval_type typ and> env = read in
+      let codomain = CodDependent (id, { captured ; env } ) in
+      return_any (VTypeFun { domain ; mode ; codomain })
     | ETypeRefine { var ; typ ; pred } ->
       let* tval = eval_type typ and> env = read in
       return_any (VTypeRefine { var ; typ = tval ; pred = { captured = pred ; env }})
@@ -616,14 +616,20 @@ let eval
         and v_labels = Record.label_set module_v in
         let check_label label =
           let new_env, typ =
-            (* think about sharing this computation because rn it is redone on every fork *)
+            let finish _ =
+              raise @@ InvariantException "Label not found in module type"
+            in
+            (* this computation is inefficiently redone on every fork *)
             Utils.List_utils.fold_left_until (fun env (label', typ) ->
-              if Record.Label.equal label' label
-              then `Stop (env, typ)
-              else `Continue (
-                Env.set (Record.Label.to_ident label') (Record.Label.Map.find label' module_v) env
-              )
-            ) (fun _ -> raise @@ InvariantException "Label not found in module type") env captured
+              if Record.Label.equal label' label then
+                `Stop (env, typ)
+              else
+                let env' =
+                  Env.set (Record.Label.to_ident label')
+                    (Record.Label.Map.find label' module_v) env
+                in
+                `Continue env'
+            ) finish env captured
           in
           let* t = local' new_env (eval_type typ) in
           check (Record.Label.Map.find label module_v) t
@@ -897,20 +903,17 @@ let eval
       let* v1 = gen t1 and> v2 = gen t2 in
       return_any (VTuple (v1, v2))
     | VTypeModule { captured ; env } ->
-      let rec fold_labels acc_m = function
-        | [] -> acc_m
+      let rec gen_module acc = function
+        | [] -> return acc
         | (label, typ) :: tl ->
-          let* acc = acc_m in
           let* tval = eval_type typ in
           let* v = gen tval in
           local (Env.set (Record.Label.to_ident label) v) (
-            fold_labels (return @@ Record.Label.Map.add label v acc) tl
+            gen_module (Record.Label.Map.add label v acc) tl
           )
       in
       let* genned_body =
-        local' env (
-          fold_labels (return Record.Label.Map.empty) captured
-        )
+        local' env @@ gen_module Record.Label.Map.empty captured
       in
       return_any (VModule genned_body)
     | VTypeSingle v ->
@@ -986,7 +989,8 @@ let eval
         (* It is safe to put this off because the act itself of wrapping
           is never the sole way to find an error. *)
         if does_wrap_matter tval then
-          return_any (VLazy { vlazy with wrapping_types = tval :: vlazy.wrapping_types })
+          let wrapping_types = tval :: vlazy.wrapping_types in
+          return_any (VLazy { vlazy with wrapping_types })
         else
           return v
       | _ ->
@@ -995,7 +999,8 @@ let eval
     | VTypeList t_body ->
       begin match v with
       | Any VLazy vlazy when does_wrap_matter t ->
-        return_any (VLazy { vlazy with wrapping_types = t :: vlazy.wrapping_types })
+        let wrapping_types = t :: vlazy.wrapping_types in
+        return_any (VLazy { vlazy with wrapping_types })
       | Any VListCons { hd ; tl } ->
         let* w_hd = wrap hd t_body
         and> Any w_tl = wrap (Any tl) t in
@@ -1039,25 +1044,23 @@ let eval
     | VTypeModule { captured = t_ls ; env } ->
       begin match v with
       | Any VModule v_body ->
-        let rec fold_labels acc_m = function
-          | [] -> acc_m
+        let rec make_wrapped_module acc = function
+          | [] -> return acc
           | (label, typ) :: tl ->
-            let* acc = acc_m in
             begin match Record.Label.Map.find_opt label v_body with
             | Some v' ->
               let* tval = eval_type typ in
               let* v = wrap v' tval in
               local (Env.set (Record.Label.to_ident label) v) (
-                fold_labels (return @@ Record.Label.Map.add label v acc) tl
+                make_wrapped_module (Record.Label.Map.add label v acc) tl
               )
             | None ->
-              return acc
+              (* module is missing label, but we robustly just ignore this *)
+              make_wrapped_module acc tl
             end
         in
         let* wrapped_body =
-          local' env (
-            fold_labels (return Record.Label.Map.empty) t_ls
-          )
+          local' env @@ make_wrapped_module Record.Label.Map.empty t_ls
         in
         return_any (VModule wrapped_body)
       | _ ->
@@ -1113,18 +1116,14 @@ let eval
     Uses the environment when evaluating.
   *)
   and eval_statement_list (statements : Ast.statement list) : (Val.any, Val.Env.t) m =
-    let rec fold_stmts acc_m = function
-      | [] -> acc_m
+    let rec fold_stmts acc = function
+      | [] -> return acc
       | stmt :: tl ->
-        let* acc = acc_m in
         let* (id, v) = eval_statement stmt in
-        local (Env.set id v) (
-          fold_stmts (return @@ Record.Label.Map.add (Record.Label.of_ident id) v acc) tl
-        )
+        let acc' = Record.Label.Map.add (Record.Label.of_ident id) v acc in
+        local (Env.set id v) @@ fold_stmts acc' tl
     in
-    let* module_body =
-      fold_stmts (return Record.Label.Map.empty) statements
-    in
+    let* module_body = fold_stmts Record.Label.Map.empty statements in
     return_any (VModule module_body)
 
   (*
@@ -1168,9 +1167,8 @@ let eval
             )) tval
         in
         (* we don't just return a wrapped fix fun because that would skip the check *)
-        return_any (VFunClosure { param ; closure =
-          { captured = defn ; env = Env.set name self env } }
-        )
+        let closure = { captured = defn ; env = Env.set name self env } in
+        return_any (VFunClosure { param ; closure })
       in
       let wrapped_val =
         let* w = wrap v tval in
