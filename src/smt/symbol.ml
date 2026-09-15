@@ -4,22 +4,14 @@ module type KEY = sig
   val uid : t -> Utils.Uid.t
 end
 
-(* Symbols have a phantom 'k (key) parameter. The underlying
-  key is actually a Uid.t *)
+(*
+  Symbols have a phantom 'k (key) parameter. The underlying key is actually a
+  Uid.t.
+*)
 type ('a, 'k) t = ('a, Utils.Uid.t) s
 and (_, 'b) s =
   | I : 'b -> (int, 'b) s
   | B : 'b -> (bool, 'b) s
-
-let compare (type a) (x : (a, 'k) t) (y : (a, 'k) t) : int =
-  match x, y with
-  | I xi, I yi
-  | B xi, B yi -> Utils.Uid.compare xi yi
-
-let equal (type a) (x : (a, 'k) t) (y : (a, 'k) t) : bool =
-  match x, y with
-  | I xi, I yi
-  | B xi, B yi -> Utils.Uid.equal xi yi
 
 module Make (Key : KEY) = struct
   type nonrec 'a t = ('a, Key.t) t

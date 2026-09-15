@@ -242,13 +242,6 @@ let rec eval
   | Binop (type b) (op, e1, e2 : (b * b * a) Binop.t * (b, 'k) t * (b, 'k) t) ->
     Binop.to_arithmetic op (eval ~default model e1) (eval ~default model e2)
 
-let default_eval model e =
-  eval model e ~default:(fun (type a) (s : (a, 'k) Symbol.t) : a ->
-    match s with
-    | I _ -> 0
-    | B _ -> true
-  )
-
 let rec subst
   : type a b. a -> (a, 'k) Symbol.t -> (b, 'k) t  -> (b, 'k) t
   = fun v s e ->

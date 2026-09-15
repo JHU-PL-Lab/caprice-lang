@@ -9,8 +9,6 @@ module Span = struct
     | 0 -> Int.compare a.ends.pos_cnum b.ends.pos_cnum
     | cmp -> cmp
 
-  let equal a b = compare a b = 0
-
   let dummy =
     { begins = Lexing.dummy_pos ; ends = Lexing.dummy_pos }
 end

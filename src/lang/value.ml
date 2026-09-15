@@ -138,10 +138,6 @@ module Make (Atom_cell : Utils.Types.P1) = struct
           ~typ:(fun t2 -> f (`Types (t1, t2)))
       )
 
-  let discard_wrapper : dval -> dval = function
-    | VWrapped x -> x.data
-    | x -> x
-
   (*
     True if the value has any mu type in its representation.
     This is used to dodge recursion by default.
@@ -366,10 +362,6 @@ module Make (Atom_cell : Utils.Types.P1) = struct
     let wrap_bottom (v : any) : string =
       Printf.sprintf "Bad wrap: tried to wrap %s with type bottom"
         (any_to_string v)
-
-    let shape_mismatch (v1 : any) (v2 : any) : string =
-      Printf.sprintf "Bad intensional equality: %s and %s are not of the same shape."
-        (any_to_string v1) (any_to_string v2)
 
     let non_contractive_type (t : tval) : string =
       Printf.sprintf "Bad type: %s is not contractive."

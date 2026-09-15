@@ -14,10 +14,6 @@ let convert_span span ~to_ =
 
 let span_to_ms = convert_span ~to_:Mtime.Span.ms
 
-let divide_span span n =
-  Option.get @@
-  Mtime.Span.of_float_ns (Mtime.Span.to_float_ns span /. Int.to_float n)
-
 let argv_span_conv =
   Cmdliner.Arg.Conv.make ()
     ~docv:"SPAN_SEC"

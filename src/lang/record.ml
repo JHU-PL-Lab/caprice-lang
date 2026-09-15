@@ -24,8 +24,6 @@ type 'a t = 'a Label.Map.t
 
 let empty = Label.Map.empty
 
-let fold (f : Label.t -> 'a -> 'acc -> 'acc) (acc : 'acc) (x : 'a t) : 'acc =
-  Label.Map.fold f x acc
 
 let label_set (x : 'a t) : Label.Set.t =
   Label.Map.domain x

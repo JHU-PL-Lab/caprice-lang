@@ -2,10 +2,9 @@ open Positions
 
 type range = { start_pos : pos ; end_pos : pos }
 
+(* ignores uri and version sent from typescript *)
 type checker_packet =
-  { uri : string
-  ; version : int
-  ; full_text : string
+  { full_text : string
   ; changes : range list
   }
 
@@ -23,12 +22,11 @@ let parse_range json =
 
 let parse_checker_packet packet_text =
   try
+    (* also contains uri (string) and version (int) *)
     let json = Yojson.Safe.from_string packet_text in
     let open Yojson.Safe.Util in
     Ok
-      { uri = json |> member "uri" |> to_string
-      ; version = json |> member "version" |> to_int
-      ; full_text = json |> member "fullText" |> to_string
+      { full_text = json |> member "fullText" |> to_string
       ; changes = json |> member "changes" |> to_list |> List.map parse_range
       }
   with

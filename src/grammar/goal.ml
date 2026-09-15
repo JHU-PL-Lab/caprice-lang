@@ -22,6 +22,3 @@ let is_before t step =
 
 let priority ({ priority ; _ } : t) : Priority.t =
   priority
-
-let step ({ step ; _ } : t) : Step.t =
-  step
