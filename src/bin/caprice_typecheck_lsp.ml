@@ -16,10 +16,9 @@ let process_one_change ~(options : Concolic.Options.t) =
   end;
   Printf.printf "done\n%!"
 
-let rec server_loop ~(options : Concolic.Options.t) () =
+let server_loop ~(options : Concolic.Options.t) =
   try
-    process_one_change ~options;
-    server_loop ~options ()
+    while true do process_one_change ~options done
   with
   | End_of_file -> ()
 
@@ -27,7 +26,7 @@ let caprice_typecheck_lsp_main =
   Cmdliner.Cmd.v (Cmdliner.Cmd.info "caprice_typecheck_lsp") @@
   let open Cmdliner.Term.Syntax in
   let+ options = Concolic.Options.of_argv in
-  server_loop ~options ()
+  server_loop ~options
 
 let () =
   match Cmdliner.Cmd.eval_value' caprice_typecheck_lsp_main with
