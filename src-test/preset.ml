@@ -2,8 +2,6 @@
 open Ctl_ast
 open Variables
 
-type t = Preset of Ident.t [@@unboxed]
-
 let s (Ident.Ident id) = id
 
 (*
@@ -73,8 +71,8 @@ let diverges : Ctl_ast.t =
   ; Test Typecheck
   ]
 
-let lookup : ident -> Ctl_ast.t = function
-  | Ident "exhaust" -> exhaust
-  | Ident "refute" -> refute
-  | Ident "diverges" -> diverges
-  | _ -> []
+let lookup : preset -> Ctl_ast.t = function
+  | Preset Ident "exhaust" -> exhaust
+  | Preset Ident "refute" -> refute
+  | Preset Ident "diverges" -> diverges
+  | Preset Ident s -> invalid_arg (Printf.sprintf "CTL: unknown preset %s" s)

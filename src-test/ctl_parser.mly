@@ -39,10 +39,13 @@ test_item:
 env_item:
   | ident EQUAL string     { Assign ($1, $3) }
   | ident PLUSEQUAL string { Append ($1, $3) }
-  | INCLUDE ident         { Include $2 }
+  | INCLUDE preset         { Include $2 }
 
 ident:
   | IDENTIFIER { Ident $1 }
+
+preset:
+  | ident { Preset $1 }
 
 string:
   | STRING     { $1 }

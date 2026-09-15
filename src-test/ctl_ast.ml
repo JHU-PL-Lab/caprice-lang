@@ -19,10 +19,12 @@ type testkind =
   | Position_check
   | Skip
 
+type preset = Preset of Ident.t [@@unboxed]
+
 type env_stmt =
   | Assign of ident * string (* variable = value *)
   | Append of ident * string (* variable += value *)
-  | Include of ident         (* include variable (an environment preset) *)
+  | Include of preset        (* include a preset *)
 
 type ctl_item =
   | Env_stmt of env_stmt (* environment modifier *)
