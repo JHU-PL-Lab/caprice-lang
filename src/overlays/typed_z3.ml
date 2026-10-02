@@ -80,7 +80,9 @@ module Make_of_context (C : CONTEXT) : Solve.SOLVABLE = struct
     |> Int.to_string
     |> Z3.Params.update_param_value ctx "timeout"
 
-  let () = set_timeout (Mtime.Span.(100 * ms))
+  let () =
+    let open! Mtime.Span in
+    set_timeout (100 * ms)
 
   let unbox_int_expr e =
     Z3.Arithmetic.Integer.get_big_int e

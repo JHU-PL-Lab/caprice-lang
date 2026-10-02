@@ -35,7 +35,7 @@ let[@inline] incr_step
   = fun ~max_step ->
   { run = fun ~reject ~accept state step _ _ ->
       let step = Step.next step in
-      if Step.(step > max_step)
+      if Step.(>) step max_step
       then reject (Eval_result.Reach_max_step step) state
       else accept () state step
   }

@@ -6,8 +6,8 @@ let int_symbol uid =
 let int_key uid =
   Formula.symbol (int_symbol uid)
 
-let int value =
-  Formula.const_int value
+let mk_i i =
+  Formula.const_int i
 
 let check_formula message expected actual =
   Alcotest.(check bool) message true (Formula.equal expected actual)
@@ -15,19 +15,19 @@ let check_formula message expected actual =
 let tighten_to_singleton () =
   let x = int_key 0 in
   let input = Formula.and_ [
-    Formula.binop Less_than_eq (int 1) x;
-    Formula.binop Less_than_eq x (int 3);
-    Formula.binop Not_equal x (int 1);
-    Formula.binop Not_equal x (int 2);
+    Formula.binop Less_than_eq (mk_i 1) x;
+    Formula.binop Less_than_eq x (mk_i 3);
+    Formula.binop Not_equal x (mk_i 1);
+    Formula.binop Not_equal x (mk_i 2);
   ] in
-  let expected = Formula.binop Equal x (int 3) in
+  let expected = Formula.binop Equal x (mk_i 3) in
   check_formula "singleton bound" expected (Ints.tighten_bounds input)
 
 let detect_contradictory_bounds () =
   let x = int_key 0 in
   let input = Formula.and_ [
-    Formula.binop Less_than_eq (int 4) x;
-    Formula.binop Less_than_eq x (int 3);
+    Formula.binop Less_than_eq (mk_i 4) x;
+    Formula.binop Less_than_eq x (mk_i 3);
   ] in
   check_formula
     "contradictory bounds"
@@ -40,9 +40,9 @@ let reduce_to_fixed_point () =
   let x = Formula.symbol x_symbol in
   let y = Formula.symbol y_symbol in
   let input = Formula.and_ [
-    Formula.binop Equal x (int 2);
-    Formula.binop Less_than_eq (Formula.binop Plus x (int 1)) y;
-    Formula.binop Less_than_eq y (int 3);
+    Formula.binop Equal x (mk_i 2);
+    Formula.binop Less_than_eq (Formula.binop Plus x (mk_i 1)) y;
+    Formula.binop Less_than_eq y (mk_i 3);
   ] in
   match Simplify.reduce input with
   | Simplify.Contradiction ->

@@ -2,7 +2,7 @@
 open Lang
 open Semantics
 open Grammar
-open Grammar.Val
+open! Grammar.Val
 open Eval_result
 
 (* `Any` is unboxed, so this is zero overhead *)
