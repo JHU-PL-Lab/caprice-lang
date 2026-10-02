@@ -370,13 +370,17 @@ module Make (Atom_cell : Utils.Types.P1) = struct
     let splayed_rec_fun (v_func : dval) (v_arg : any) : string =
       Printf.sprintf "Called rec fun %s with symbolic value %s while splaying"
         (to_string v_func) (any_to_string v_arg)
+
+    let match_poly (pat : Pattern.t) : string =
+      Printf.sprintf "Bad match: matching polymorphic value with pattern %s"
+        (Pattern.to_string pat)
   end
 
   module Match = struct
     type res =
       | Match of env
       | No_match
-      | Failure of string
+      | Issue of string
 
     let match_ = Match Env.empty
 
@@ -388,7 +392,7 @@ module Make (Atom_cell : Utils.Types.P1) = struct
       let ( let** ) (m : res m) (f : Env.t -> res m) : res m =
         let* m in
         match m with
-        | (No_match | Failure _) as r -> return r
+        | (No_match | Issue _) as r -> return r
         | Match env -> f env
 
       (*
@@ -424,9 +428,7 @@ module Make (Atom_cell : Utils.Types.P1) = struct
             matches p v
           | p, VGenPoly _ ->
             (* generated polymorphic values cannot be inspected *)
-            return @@ Failure
-              (Printf.sprintf "Bad match: matching polymorphic value with pattern %s"
-                (Pattern.to_string p))
+            return @@ Issue (Error_messages.match_poly p)
           | PVariant { label = pattern_label ; payload = payload_pattern },
             VVariant { label = subject_label ; payload = Any v } ->
               if Variant.Label.equal pattern_label subject_label

@@ -117,7 +117,7 @@ let eval
           begin match res with
           | Match env' -> local (fun env -> Env.extend env ~with_:env') (eval body)
           | No_match -> find_match tl
-          | Failure msg -> escape (Mismatch msg)
+          | Issue msg -> escape (Mismatch msg)
           end
       in
       find_match patterns

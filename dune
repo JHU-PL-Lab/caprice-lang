@@ -2,7 +2,7 @@
 (env
  (dev
   (flags
-   (:standard -w +a-4-40-41-42-45-50-70)))
+   (:standard -w +a-4-40-42-45-50-70)))
  (release
   (flags (:standard -noassert \ -g))
   (ocamlopt_flags (:standard -O3 \ -g))))
