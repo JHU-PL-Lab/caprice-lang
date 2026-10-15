@@ -3,5 +3,5 @@
 *)
 
 (* ERROR: predicate is nondeterministic *)
-let f (x : int | x == input) ~> int =
+let f (x : int | x == pick) ~> int =
   x

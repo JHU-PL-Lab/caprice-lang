@@ -3,5 +3,5 @@
 *)
 
 (* ERROR: nondeterministic refinement *)
-let f (x : int | input == 0) : unit =
+let f (x : int | pick == 0) : unit =
   ()

@@ -6,5 +6,5 @@
   Nondeterministic type expressions are disallowed. However, the body never
   returns, so the type was never used, so we let this slide.
 *)
-let vanish (dep x : int) : if input == 0 then int else bool =
+let vanish (dep x : int) : ifzero pick then int else bool =
   assume false

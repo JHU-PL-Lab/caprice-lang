@@ -49,7 +49,7 @@
         },
         {
           "name": "support.function.builtin.caprice",
-          "match": "\\b(input|assert|assume|not)\\b"
+          "match": "\\b(input|assert|assume|not|pick)\\b"
         }
       ]
     },
