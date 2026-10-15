@@ -1,0 +1,9 @@
+(* TEST
+  include refute;
+*)
+
+let t = mu t. int -> t
+
+let g (x : t) : bool =
+  let y : t = x 0 in (* this check should not prevent us from reaching the next line *)
+  1 (* ERROR: not bool *)
