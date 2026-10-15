@@ -146,6 +146,9 @@ expr:
     { ETuple (left, right) }
   | IF if_=expr THEN then_=expr ELSE else_=expr %prec prec_if
     { EIf { if_ ; then_ ; else_ } }
+  | IFZERO e=expr THEN then_=expr ELSE else_=expr %prec prec_if
+    { let if_ = EBinop { left = e ; binop = BEqual ; right = EInt 0 } in
+      EIf { if_ ; then_ ; else_ } }
   | FUNCTION params=l_ident+ ARROW body=expr %prec prec_fun
     { mk_curried_fun params body }
   | stmt=statement IN body=expr %prec prec_let

@@ -21,6 +21,7 @@
 %token FUNCTION
 %token WITH
 %token IF
+%token IFZERO
 %token THEN
 %token ELSE
 %token LET

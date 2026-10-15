@@ -3,4 +3,4 @@
 *)
 
 let always_mk_list (f : int -> int) : list int =
-  if f 0 * 0 == 0 then [f 1] else 0 (* unreachable 0 *)
+  ifzero f 0 * 0 then [f 1] else 0 (* unreachable 0 *)

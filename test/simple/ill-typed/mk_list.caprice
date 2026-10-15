@@ -3,4 +3,4 @@
 *)
 
 let mk_list (f : int -> int) : list int =
-  if f 0 == 0 then [f 1] else 0 (* ERROR: super trivial, 0 is not a list *)
+  ifzero f 0 then [f 1] else 0 (* ERROR: super trivial, 0 is not a list *)

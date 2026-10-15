@@ -42,6 +42,7 @@ rule token = parse
 | "function"           { FUNCTION }
 | "with"               { WITH }
 | "if"                 { IF }
+| "ifzero"             { IFZERO }
 | "then"               { THEN }
 | "else"               { ELSE }
 | "let"                { LET }

@@ -6,8 +6,8 @@
 let non_neg = { i : int | i >= 0 }
 
 let rec split_list (type a) (ls : list a) (n : non_neg) : { first_n : list a ; remaining : list a } =
-  if n == 0
-  then { first_n = [] ; remaining = ls }
+  ifzero n then
+    { first_n = [] ; remaining = ls }
   else
     match ls with
     | [] -> { first_n = [] ; remaining = [] }

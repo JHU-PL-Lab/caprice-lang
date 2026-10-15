@@ -55,11 +55,11 @@ end
 let Identity0 = F Identity1
 
 (* optionally apply no-op *)
-let Id1 = if input == 0 then NoOp Identity1 else Identity1
-let Id0 = if input == 0 then NoOp' Identity0 else Identity0
+let Id1 = ifzero input then NoOp Identity1 else Identity1
+let Id0 = ifzero input then NoOp' Identity0 else Identity0
 
 let pick_t t1 t2 =
-  if input == 0 then
+  ifzero input then
     t1
   else
     t2
