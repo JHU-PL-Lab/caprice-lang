@@ -26,6 +26,13 @@ let to_string = function
   | Exhausted_pruned -> "Exausted pruned tree"
   | Exhausted        -> "Exhausted"
 
+let explain = function
+  | Found_error _    -> "The program is ill typed"
+  | Timeout _        -> "No error was found within the allowed time"
+  | Unknown          -> "No error was found, but some branches were not explored"
+  | Exhausted_pruned -> "There is no error within the allowed search depth"
+  | Exhausted        -> "The program is well typed"
+
 let is_error = function
   | Found_error _ -> true
   | _ -> false

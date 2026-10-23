@@ -129,8 +129,10 @@ module Make (Y : sig val yield : unit -> unit end) = struct
     if options.is_random then Random.self_init () else Random.init 999;
     let span, (answer, ~run_count) = Utils.Time.time (begin_loop ~options) pgm in
     if print_outcome then
-      Printf.printf "Finished type checking in %0.3f ms and %d attempted refutations:\n    %s\n"
-        (Utils.Time.span_to_ms span) run_count (Answer.to_string answer);
+      Printf.printf
+        "Finished in %0.3f ms and %d attempted refutations:\n    %s\n    %s\n"
+        (Utils.Time.span_to_ms span) run_count
+        (Answer.to_string answer) (Answer.explain answer);
     answer
 end
 
