@@ -87,6 +87,11 @@ module Make (Y : sig val yield : unit -> unit end) = struct
             (fun () -> Random.int_in_range ~min:(-10) ~max:10), Random.bool
         in
         let runs = eval goal ~default_int ~default_bool in
+        (* The logged runs include two for each fork (and one for the main run
+          itself, which is dropped during integer division). We add the number
+          of forks to count the total runs (attempted refutations). *)
+        let forks = List.length runs / 2 in
+        run_count := !run_count + forks;
         match collect_logged_runs runs ~max_tree_depth:options.max_tree_depth with
         | `Quit answer ->
           answer
@@ -124,7 +129,7 @@ module Make (Y : sig val yield : unit -> unit end) = struct
     if options.is_random then Random.self_init () else Random.init 999;
     let span, (answer, ~run_count) = Utils.Time.time (begin_loop ~options) pgm in
     if print_outcome then
-      Printf.printf "Finished type checking in %0.3f ms and %d runs:\n    %s\n"
+      Printf.printf "Finished type checking in %0.3f ms and %d attempted refutations:\n    %s\n"
         (Utils.Time.span_to_ms span) run_count (Answer.to_string answer);
     answer
 end
