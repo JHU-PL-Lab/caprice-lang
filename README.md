@@ -8,13 +8,13 @@ Caprice is a semantically typed functional language with types as values.
 
 ## Installation
 
-Caprice is built with OCaml 5.5.0.
+Caprice is built with OCaml 5.5.
 
-Via opam, install OCaml 5.5.0 and then install the dependencies. Answer y/yes to all questions:
+Via opam, install OCaml 5.5 and then install the dependencies. Answer y/yes to all questions:
 
 ```cmd
 opam update
-opam switch create 5.5.0
+opam switch create 5.5.2
 opam install . --deps-only
 ```
 
@@ -41,12 +41,38 @@ To write programs in the Caprice language, it's suggested to install the VS Code
 
 <!-- To use the landmarks profiling tool, see the recent [pull request](https://github.com/LexiFi/landmarks/pull/47) for compatibility with ppxlib >= 0.36.0 and OCaml 5.5 features. It will require a local opam pin to use landmarks in caprice-lang until that PR is merged and released. Profiling is not required to run Caprice. -->
 
+## Benchmarking
+
+For benchmarking, it is recommended to use a compiler switch with flambda for better optimization.
+
+```cmd
+opam update
+opam switch create 5.5+flambda 5.5.2+options ocaml-option-flambda
+opam install . --deps-only
+```
+
+Then, build in release mode to perform optimizations.
+
+```cmd
+dune build --profile=release
+```
+
+Now, run benchmarks on entire folders or specific files. Benchmark throughput with `--sec` or some number of trials with `--trials`. All type checker options still work as command line arguments. E.g.
+
+```cmd
+./bench.exe file/path/or/directory --sec 4 -s never -r
+```
+
+```cmd
+./bench.exe file/path/or/directory --trials 1000 -s only -w no
+```
+
 ## Programming with Caprice
 
 Write Caprice programs in `.caprice` files. With the project built, you can run the type checker with the `./typecheck.exe` executable. For example,
 
 ```cmd
-./typecheck.exe filename.caprice
+./typecheck.exe path/to/file/name.caprice
 ```
 
 type checks `filename.caprice`. The output may contain one of several messages:
