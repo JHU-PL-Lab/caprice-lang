@@ -5,7 +5,8 @@
 (* freer monads already do hkt parameters with mu, but this simplifies it a bit *)
 
 (* the type `t f a` is passed to the type function `f` *)
-let tree f a = mu t.
+let tf = (type -> type) -> type -> type
+let tree : tf = fun f a -> mu t.
   | `Leaf of a
   | `Node of f t
 

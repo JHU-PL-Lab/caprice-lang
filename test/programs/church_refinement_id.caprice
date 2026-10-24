@@ -2,6 +2,8 @@
   include refute; # incompleteness -- higher kinded polymorphism
 *)
 
+(* NOTE: should make in "incompleteness" directory for this stuff and for splaying-specific stuff (and deterministic functions) *)
+
 let refine t pred =
   (type r) -> ((x : t) -> (if pred x then unit else bottom) -> r) -> r
 

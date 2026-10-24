@@ -21,6 +21,7 @@ let rec mk_fun_type n =
   else fun x ->
     x -> mk_fun_type (n - 1) (* ERROR: see the comment above *)
 
+(* equal to f : int -> bool -> int *)
 let f : mk_fun_type 3 int bool int =
   fun i b ->
     if b

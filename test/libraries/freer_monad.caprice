@@ -19,7 +19,8 @@ let ty n =
 
 let ty1 = ty 1
 
-let t : ty1 -> type -> type = fun f a -> mu t.
+let t : (type -> type) -> type -> type = fun f a -> mu t.
+(* let t : ty1 -> type -> type = fun f a -> mu t. *)
   | `Return of a
   | `Bind of sig
       val b : type

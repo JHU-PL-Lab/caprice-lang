@@ -2,6 +2,10 @@
   include exhaust;
 *)
 
+(*
+  TODO: beef this up a bit with some more functions.
+*)
+
 let t a = list a -> list a
 
 let empty : (type a) -> t a = fun _ l -> l

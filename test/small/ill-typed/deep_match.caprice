@@ -1,7 +1,7 @@
 (* TEST
   include refute;
+  flags += " -s only";
 *)
-
 
 let f (x : mu t. `A of unit | `B of t) : int =
   match x with

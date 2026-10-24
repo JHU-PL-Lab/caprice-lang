@@ -1,0 +1,96 @@
+(* TEST
+  include exhaust;
+*)
+
+(*
+  Various well-typed functions on integers, many with refinement types.
+
+  This file is relatively slow to type check because modulus and division are hard in SMT solvers.
+*)
+
+let rec ack (m : int) (n : int) : int =
+  if m == 0 then
+    n + 1
+  else if n == 0 then
+    ack (m - 1) 1
+  else
+    ack (m - 1) (ack m (n - 1))
+
+
+let pos_int = { i : int | i > 0 }
+
+let factors (dep n : pos_int) : list { m : pos_int | n % m == 0 } =
+  let rec factors (dependent i : pos_int) : list { k : int | k >= i && n % k == 0 } =
+    if i > n then
+      []
+    else if n % i == 0 then
+      i :: factors (i + 1)
+    else
+      factors (i + 1)
+  in
+  factors 1
+
+
+let rec fib (n : int) : int =
+  if n == 0 then
+    0
+  else if n == 1 then
+    1
+  else
+    fib (n - 1) + fib (n - 2)
+
+
+let rec fact (n : int | n >= 0) : { x : int | x >= 0 } =
+  if n == 0 then
+    0
+  else if n == 1 then
+    1
+  else
+    n * fact (n - 1)
+
+
+let prime_candidate = { i : int | i > 1 }
+
+let is_prime (n : prime_candidate) : bool =
+  let rec aux (p : prime_candidate) : bool =
+    (p * p > n) || ((n % p) <> 0 && aux (p + 2))
+  in
+  n == 2 || ((n % 2) <> 0 && aux 3)
+
+
+let rec gcd (dep a : int | a > 0) (dep b : int | b > 0) : { x : int | x > 0 && x <= a && x <= b } =
+  let rem = a % b in
+  ifzero rem then
+    b
+  else
+    gcd b rem
+
+let lcm (dep n : int | n > 0) (dep m : int | m > 0) : { x : int | x >= n && x >= m } =
+  n * m / gcd n m
+
+
+let rec mult (dep x : int) (dep y : int) : { i : int | i == x * y } =
+  if x == 1 then y else y + mult (x - 1) y
+
+let double (dep n : int | n > 0) : { m : int | m > n } =
+  mult n 2
+
+
+(* Encode mutually recursive functions by nesting them *)
+let rec even (dep n : int | n >= 0) : { b : bool | b == (n % 2 == 0) } =
+  let rec odd (dep n : int | n >= 0) : { b : bool | b == (n % 2 == 1) } =
+    if n == 0 then
+      false
+    else
+      even (n - 1)
+  in
+  if n == 0 then
+    true
+  else
+    odd (n - 1)
+
+let rec summate (dep n : int | n >= 0) : { m : int | m == (n * (n + 1)) / 2 } =
+  if n == 0 then
+    0
+  else
+    n + summate (n - 1)

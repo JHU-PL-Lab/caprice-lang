@@ -2,6 +2,9 @@
   include exhaust;
 *)
 
+(*
+  Note: this is a good test for a non-library-like program
+*)
 
 let non_neg = { i : int | i >= 0 }
 

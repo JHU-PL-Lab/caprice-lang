@@ -90,3 +90,70 @@ let rec of_seq (type a) (seq : seq a) : list a =
     | `Cons (x2, seq) -> x1 :: x2 :: of_seq a seq
     end
   end
+
+(*
+  Now here are some functions that are standard list functions
+  but are not necessarily from OCaml's standard library.
+*)
+
+(* non-tail-rec length *)
+let rec length (type a) (ls : list a) : int =
+  match ls with
+  | [] -> 0
+  | _ :: tl -> 1 + length a tl
+  end
+
+let rec filter (type a) (ls : list a) (f : a -> bool) : list a =
+  match ls with
+  | [] -> []
+  | hd :: tl ->
+    if f hd then
+      hd :: filter a tl f
+    else
+      filter a tl f
+  end
+
+(* Any refinements for orderedness will not work because they are recursive,
+   so here we just use OCaml-like, non-refined types. *)
+let rec is_ordered (type a) (ls : list a) (cmp : a -> a -> int) : bool =
+  match ls with
+  | [] | _ :: [] -> true
+  | x :: (y :: _ as tl) ->
+    cmp x y < 1 && is_ordered a tl cmp
+  end
+
+let rec compose_list (type a) (fs : list (a -> a)) : a -> a =
+  match fs with
+  | [] -> fun x -> x
+  | f :: tl -> fun x -> f (compose_list a tl x)
+  end
+
+let t acc stop =
+  | `Continue of acc
+  | `Stop of stop
+
+let rec fold_left_until (type a acc stop)
+  (f : acc -> a -> t acc stop)
+  (finish : acc -> stop)
+  (init : acc)
+  (ls : list a)
+  : stop =
+  match ls with
+  | [] -> finish init
+  | hd :: tl ->
+    match f init hd with
+    | `Stop x -> x
+    | `Continue x -> fold_left_until a acc stop f finish x tl
+    end
+  end
+
+let fold_left (type a acc) (f : acc -> a -> acc) (init : acc) (ls : list a) : acc =
+  fold_left_until a acc acc (fun x y -> `Continue (f x y)) (fun x -> x) init ls
+
+let reduce_matrix (type a) (f : a -> a -> a) (init : a) (m : list (list a)) : a =
+  fold_left (list a) a (fun acc row ->
+    (fold_left a a (fun a b -> f a b) acc row)
+  ) init m
+
+let sum_matrix (m : list (list int)) : int =
+  reduce_matrix int (fun x y -> x + y) 0 m

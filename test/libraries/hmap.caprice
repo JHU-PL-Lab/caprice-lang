@@ -2,6 +2,8 @@
   include exhaust;
 *)
 
+(* NOTE: this is a good library-like program *)
+
 let Option = struct
   let t a = `Some of a | `None of unit
   let return a = `Some a
