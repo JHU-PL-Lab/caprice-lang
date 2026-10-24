@@ -184,7 +184,7 @@ let reset_goal : 'env. (unit, 'env) m =
     accept ()
       { state with
         stem = Stem.make (Stem.contract stem)
-      ; runs = { stem ; answer = Exhausted } :: state.runs
+      ; runs = { stem ; outcome = Exhausted } :: state.runs
       } step
   }
 
@@ -206,7 +206,8 @@ let fork (forked_m : 'a. ('a, 'env) m) : (unit, 'env) m =
         (* Note that the forked state runs include the original runs (see setup_state)
             so we will overwrite og runs; they are included inside forked_state.runs *)
         let forked_run =
-          { Logged_run.stem = forked_state.stem ; answer = Eval_result.to_answer e }
+          { Logged_run.stem = forked_state.stem
+          ; outcome = Eval_result.to_outcome e }
         in
         { og with runs = forked_run :: forked_state.runs }
       )

@@ -1,4 +1,4 @@
 
 type t =
   { stem : Stem.t
-  ; answer : Answer.t }
+  ; outcome : Outcome.t }

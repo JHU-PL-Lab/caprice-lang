@@ -57,9 +57,9 @@ let compute_typecheck_test filename env =
   let expect = parse_expect (get_var env typing) in
   let options = options_of_env env in
   let pgm = Parsing.Parse.parse_file filename in
-  let answer = Concolic.Loop.begin_ceval pgm ~options in
-  match expect, answer with
-  | Ill_typed, Grammar.Answer.Found_error _
+  let outcome = Concolic.Loop.begin_ceval pgm ~options in
+  match expect, outcome with
+  | Ill_typed, Found_error _
   | Exhausted, Exhausted
   | No_error, (Unknown | Exhausted_pruned | Timeout _) -> true
   | _ -> false

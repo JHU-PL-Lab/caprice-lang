@@ -14,9 +14,9 @@ type t =
   (* finish to value *)
   | Done
 
-let to_answer = function
+let to_outcome = function
   (* error cases *)
-  | Refutation (v, t) -> Answer.Found_error (Val.Error_messages.refutation v t)
+  | Refutation (v, t) -> Outcome.Found_error (Val.Error_messages.refutation v t)
   | Mismatch msg -> Found_error msg
   | Unbound_variable Ident id -> Found_error ("Unbound variable: " ^ id)
   | Assert_false -> Found_error "Failed assertion"
@@ -29,4 +29,4 @@ let to_answer = function
   | Done -> Exhausted
 
 (* stop on errors *)
-let is_signal_to_stop res = Answer.is_error @@ to_answer res
+let is_signal_to_stop res = Outcome.is_error @@ to_outcome res

@@ -1241,5 +1241,5 @@ let eval
   in
 
   let result, state = run (eval_statement_list pgm) goal in
-  let answer = Eval_result.to_answer result in
-  { stem = state.stem ; answer } :: state.runs
+  let outcome = Eval_result.to_outcome result in
+  { stem = state.stem ; outcome } :: state.runs

@@ -25,13 +25,13 @@ let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
     ) refinement_positions
   in
   begin match splay_check ~options pgm with
-  | Grammar.Answer.Found_error msg ->
+  | Found_error msg ->
     Print.print_splay_error pos.small msg;
     Scheduler.Spawn
       [ { loc = pos.full.begins
         ; task = fun () ->
             begin match splay_check ~options unrefined_pgm with
-            | Grammar.Answer.Found_error _ -> ()
+            | Found_error _ -> ()
             | _ -> List.iter Print.print_refinement_warning refinement_positions
             end;
             Scheduler.Done
@@ -39,17 +39,17 @@ let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
       ; { loc = pos.full.begins
         ; task = fun () ->
             let a = normal_check ~options pgm in
-            Print.print_answer pos a;
+            Print.print_outcome pos a;
             begin match a with
-            | Grammar.Answer.Found_error _ ->
+            | Found_error _ ->
               List.iter Print.print_clear_range refinement_positions;
               Scheduler.Cancel_peers pos.full.begins
             | _ -> Scheduler.Done
             end
         }
       ]
-  | answer ->
-    Print.print_answer pos answer;
+  | outcome ->
+    Print.print_outcome pos outcome;
     Scheduler.Done
   end
 
@@ -69,7 +69,7 @@ let check_all ~(options : Concolic.Options.t) ~refinement_positions pgms unrefin
             handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm
           | _ ->
             let a = M.begin_ceval ~print_outcome:false ~options pgm in
-            Print.print_answer pos a;
+            Print.print_outcome pos a;
             Scheduler.Done
       }
     ) pgms unrefined_pgms
@@ -86,13 +86,13 @@ let find_baseline_error ~options stmts_with_pos =
     Concolic.Loop.begin_ceval ~print_outcome:false ~options (List.map fst all_disabled)
   in
   match baseline with
-  | Grammar.Answer.Found_error _ ->
+  | Found_error _ ->
     let min_pos_span = Utils.Pos.Span.dummy in
     Stmt_check.mk_pgms all_disabled ~start_pos:min_pos_span
     |> List.find_map (fun (span, pgm) ->
       match Concolic.Loop.begin_ceval ~print_outcome:false ~options pgm with
-      | Grammar.Answer.Exhausted -> None
-      | answer -> Some (span, answer))
+      | Exhausted -> None
+      | outcome -> Some (span, outcome))
   | _ -> None
 
 let run_typecheck ~(options : Concolic.Options.t) (packet : Protocol.checker_packet) =
@@ -104,7 +104,7 @@ let run_typecheck ~(options : Concolic.Options.t) (packet : Protocol.checker_pac
       | None -> stmts_with_pos, unrefined_stmts
       | Some (error_span, a) ->
         (* TODO: extend error message to say statements after this are unreachable *)
-        let () = Print.print_answer error_span a in
+        let () = Print.print_outcome error_span a in
         fst (Stmt_check.split_on_pos stmts_with_pos error_span.full),
         fst (Stmt_check.split_on_pos unrefined_stmts error_span.full)
     in

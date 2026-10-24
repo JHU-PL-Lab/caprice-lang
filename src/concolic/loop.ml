@@ -34,26 +34,26 @@ let adjacent_targets ~(max_tree_depth : int) (stem : Stem.t)
   make (Goal.priority stem.goal) stem.goal.constraints (Stem.forward_stem stem)
 
 let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) :
-  [ `Quit of Answer.t | `Cont of Target.t list * Answer.t ] =
-  let rec collect acc_targets acc_answer = function
-    | [] -> `Cont (acc_targets, acc_answer)
-    | { Logged_run.answer ; _ } :: _ when Answer.is_error answer ->
-      `Quit answer (* an error is the objective, and we found it! *)
-    | { answer ; stem } :: tl ->
+  [ `Quit of Outcome.t | `Cont of Target.t list * Outcome.t ] =
+  let rec collect acc_targets acc_outcome = function
+    | [] -> `Cont (acc_targets, acc_outcome)
+    | { Logged_run.outcome ; _ } :: _ when Outcome.is_error outcome ->
+      `Quit outcome (* an error is the objective, and we found it! *)
+    | { outcome ; stem } :: tl ->
       let new_targets, ~is_pruned = adjacent_targets stem ~max_tree_depth in
       let all_targets = List.rev_append new_targets acc_targets
-      and merged_answer =
-        let run_answer = if is_pruned then Answer.prune answer else answer in
-        Answer.min acc_answer run_answer
+      and merged_outcome =
+        let run_outcome = if is_pruned then Outcome.prune outcome else outcome in
+        Outcome.min acc_outcome run_outcome
       in
-      collect all_targets merged_answer tl
+      collect all_targets merged_outcome tl
   in
   collect [] Exhausted runs
 
 let solve = Smt.Solve.main_solve (module Overlays.Typed_z3.Default)
 
 module Make (Y : sig val yield : unit -> unit end) = struct
-  let begin_loop ~(options : Options.t) (pgm : Lang.Ast.program) : Answer.t * run_count:int =
+  let begin_loop ~(options : Options.t) (pgm : Lang.Ast.program) : Outcome.t * run_count:int =
     let run_count = Utils.Counter.create () in
 
     (* Run the program concolically in a loop *)
@@ -68,13 +68,13 @@ module Make (Y : sig val yield : unit -> unit end) = struct
         let () = Y.yield () in
         match Target_queue.pop tq with
         | Some (target, tq) -> handle_target target tq
-        | None -> Answer.Exhausted
+        | None -> Outcome.Exhausted
 
       (* solve and run the target, or continue exploring if unsat *)
       and handle_target target tq =
         match solve target.target_formula with
         | Sat model -> handle_goal tq (Goal.of_solved_target target model)
-        | Unknown -> Answer.min Answer.Unknown (explore tq)
+        | Unknown -> Outcome.min Outcome.Unknown (explore tq)
         | Unsat -> explore tq
 
       (* evaluate towards the goal, then continue exploring *)
@@ -93,10 +93,10 @@ module Make (Y : sig val yield : unit -> unit end) = struct
         let forks = List.length runs / 2 in
         run_count := !run_count + forks;
         match collect_logged_runs runs ~max_tree_depth:options.max_tree_depth with
-        | `Quit answer ->
-          answer
-        | `Cont (targets, answer) ->
-          Answer.min answer (explore (Target_queue.push_list tq targets))
+        | `Quit outcome ->
+          outcome
+        | `Cont (targets, outcome) ->
+          Outcome.min outcome (explore (Target_queue.push_list tq targets))
       in
       explore Target_queue.initial
     in
@@ -107,33 +107,35 @@ module Make (Y : sig val yield : unit -> unit end) = struct
       | Never_splay -> run false
       | Fallback ->
         (* try to splay first *)
-        let answer = run true in
-        if Answer.is_error answer then
+        let outcome = run true in
+        if Outcome.is_error outcome then
           (* The loop stopped due to error, so try without splaying in
             case the error was due to incompleteness. *)
           let () = Utils.Counter.reset run_count in
           run false
         else
-          answer
+          outcome
     in
 
-    let answer =
-      match Utils.Time.with_timeout options.global_timeout run_splaying_modes () with
+    let outcome =
+      match
+        Utils.Time.with_timeout options.global_timeout run_splaying_modes ()
+      with
       | Ok a -> a
-      | Error t -> Answer.Timeout t
+      | Error t -> Outcome.Timeout t
     in
-    answer, ~run_count:(Utils.Counter.get run_count)
+    outcome, ~run_count:(Utils.Counter.get run_count)
 
   let begin_ceval ?(print_outcome : bool = true) ~(options : Options.t)
-    (pgm : Lang.Ast.program) : Answer.t =
+    (pgm : Lang.Ast.program) : Outcome.t =
     if options.is_random then Random.self_init () else Random.init 999;
-    let span, (answer, ~run_count) = Utils.Time.time (begin_loop ~options) pgm in
+    let span, (outcome, ~run_count) = Utils.Time.time (begin_loop ~options) pgm in
     if print_outcome then
       Printf.printf
         "Finished in %0.3f ms and %d attempted refutations:\n    %s\n    %s\n"
         (Utils.Time.span_to_ms span) run_count
-        (Answer.to_string answer) (Answer.explain answer);
-    answer
+        (Outcome.to_string outcome) (Outcome.explain outcome);
+    outcome
 end
 
 include Make (struct let yield () = () end)

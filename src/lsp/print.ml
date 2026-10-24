@@ -12,20 +12,20 @@ let print_splay_error span msg =
 let print_clear_range span =
   Printf.printf "clear_range:%s\n%!" (format_span span)
 
-let print_answer pos answer =
+let print_outcome pos outcome =
   let full = format_span pos.Lang.Ast.full
   and small = format_span pos.small in
-  match answer with
-  | Grammar.Answer.Found_error msg ->
+  match outcome with
+  | Grammar.Outcome.Found_error msg ->
     print_clear_range pos.small;
     Printf.printf "error:%s:%s\n%!" full msg
-  | Grammar.Answer.Timeout _ ->
+  | Timeout _ ->
     Printf.printf "timeout:%s\n%!" small
-  | Grammar.Answer.Unknown ->
+  | Unknown ->
     Printf.printf "unknown:%s\n%!" small
-  | Grammar.Answer.Exhausted_pruned ->
+  | Exhausted_pruned ->
     Printf.printf "exhausted_pruned:%s\n%!" small
-  | Grammar.Answer.Exhausted ->
+  | Exhausted ->
     Printf.printf "ok:%s\n%!" small
 
 let print_refinement_warning pos =

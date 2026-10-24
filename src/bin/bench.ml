@@ -8,7 +8,7 @@ let make_one ~options fname =
           ~print_outcome:false
           ~options
       with
-      | Grammar.Answer.Timeout _ -> assert false
+      | Grammar.Outcome.Timeout _ -> assert false
       | _ -> ()
     in
     Some (Filename.basename fname, run, pgm)
