@@ -1,0 +1,22 @@
+(* TEST
+  include refute;
+*)
+
+(* Not exactly type casing, so this is poorly named...*)
+
+(* Encode intersection type *)
+let t = (x : `Int of int | `Bool of bool) ->
+  match x with
+  | `Int _ -> int
+  | `Bool _ -> bool
+  end
+
+let (f : t) =
+  let g (type a) (x : a) : a =
+    match x with
+    | `Int i -> i + 1 (* Error: matching on polymorphic value *)
+    | `Bool b -> not b
+    | _ -> x
+    end
+  in
+  g (* Also error here -- no good type to put here *)

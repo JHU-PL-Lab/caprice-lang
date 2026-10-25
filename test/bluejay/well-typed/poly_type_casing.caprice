@@ -1,0 +1,20 @@
+(* TEST
+  include exhaust;
+*)
+
+(* Not exactly type casing, so this is poorly named...*)
+
+(* Encode intersection type *)
+let t = (x : `Int of int | `Bool of bool) ->
+  match x with
+  | `Int _ -> int
+  | `Bool _ -> bool
+  end
+
+(* Somewhat of a pointless test here, but that's not my problem *)
+let (f : t) =
+  fun x ->
+    match x with
+    | `Int i -> i + 1
+    | `Bool b -> not b
+    end

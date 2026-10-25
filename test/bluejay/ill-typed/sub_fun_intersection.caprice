@@ -1,0 +1,30 @@
+(* TEST
+  include refute;
+*)
+
+(* subtyping of refined intersection type. *)
+
+(* Encode intersection type *)
+let t = { f : (x : `Int of int | `Bool of bool) ->
+  match x with
+  | `Int _ -> int
+  | `Bool _ -> bool
+  end
+  | f (`Bool true)
+}
+
+let f =
+  fun x ->
+    match x with
+    | `Bool b -> true
+    | `Int i -> i
+    | _ -> 1 :: 2 :: []
+    end
+
+let g (h : t) : t =
+  let k (i : int) : int =
+    h (`Int i)
+  in
+  k (* ERROR: this is not a subtype of t *)
+
+let x = g f (* well-typed function application here. Error is in body of g *)
