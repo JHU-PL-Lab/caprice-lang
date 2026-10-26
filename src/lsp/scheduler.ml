@@ -60,4 +60,7 @@ let round_robin (fs : work_item list) : unit =
       in
       dequeue ()
   in
-  dequeue ()
+  try dequeue () with
+  | exn ->
+    filter_queue (fun { cancel ; _ } -> cancel (); false) run_q;
+    raise exn
