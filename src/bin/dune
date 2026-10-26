@@ -6,6 +6,7 @@
   parsing
   concolic
   lsp
+  utils
   ; external
   cmdliner
   benchmark

@@ -21,36 +21,6 @@ let bench_throughput ~sec tests =
 let bench_trials ~trials tests =
   Benchmark.latencyN (Int64.of_int trials) tests
 
-let ls_dir dir =
-  Sys.readdir dir
-  |> Array.to_list
-  |> List.map (Filename.concat dir)
-  |> List.sort String.compare
-
-let is_caprice_file fname = Filename.check_suffix fname "caprice"
-
-let find_caprice_files ~(recpaths : bool) (init : string list) : string list =
-  if not recpaths then
-    List.concat_map (fun fname ->
-      if Sys.is_directory fname then
-        List.filter is_caprice_file (ls_dir fname)
-      else if is_caprice_file fname then
-        [ fname ]
-      else
-        []
-    ) init
-  else
-    let rec go = function
-      | [] -> []
-      | dir :: worklist when Sys.is_directory dir ->
-        go (ls_dir dir @ worklist)
-      | fname :: worklist when is_caprice_file fname ->
-        fname :: go worklist
-      | _ :: worklist ->
-        go worklist
-    in
-    go init
-
 let bench_main =
   Cmdliner.Cmd.v (Cmdliner.Cmd.info "bench") @@
   let open Cmdliner.Term.Syntax in
@@ -73,7 +43,11 @@ let bench_main =
       & info ["trials"] ~docv:"TRIALS" ~doc:"Number of trials"
     )
   in
-  let tests = find_caprice_files ~recpaths paths |> List.filter_map (make_one ~options) in
+  let tests =
+    paths
+    |> List.concat_map (Utils.Files.find_caprice_files ~recpaths)
+    |> List.filter_map (make_one ~options)
+  in
   let _res =
     match trials with
     | Some n -> bench_trials ~trials:n tests

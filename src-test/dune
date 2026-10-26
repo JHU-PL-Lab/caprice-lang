@@ -30,6 +30,7 @@
  (libraries
   ; internal
   caprice_test
+  utils
   ; external
   alcotest
  )
