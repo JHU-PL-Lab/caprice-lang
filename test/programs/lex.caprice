@@ -33,54 +33,12 @@ let Tree = mu Tree.
 
 let Result = fun t -> `Success of t | `Failure of int
 let TokResult = Result {s:string; tok:Token}
-(* let StringResult = Result {result:string; file:string} *)
-
-(* let pure x = `Success x
-
-let bind x f =
-  match x with
-  | `Failure _ -> x
-  | `Success y -> f y
-  end  *)
 
 let compose f g chars =
   match f chars with
   | `Success x -> `Success x
   | `Failure _ -> g chars
   end
-
-(* let take_char (x:string): int =
-  match x with
-  | [] -> -1
-  | a :: _ -> a
-  end *)
-
-(*
-  I'm not exactly sure what this is doing, but I have replicated the effective
-  behavior of the commented code below.
-
-  The ideal types would be that long has greater length than short, but our type
-  system cannot prove such a thing, so I just write an `assume false` to
-  cover that case.
-
-  Also, this function is not used anymore.
-*)
-(* let rec str_compare (short : string) (long : string) : { eq : bool ; s : string } =
-  match short, long with
-  | [], [] -> { eq = true ; s = [] }
-  | [], _ :: tl -> { eq = true ; s = tl }
-  | a :: tl1, b :: tl2 ->
-    if a == b then
-      str_compare tl1 tl2
-    else
-      { eq = false ; s = [] }
-  | _, [] -> assume false
-  end *)
-
-    (* let hd = take_char short in
-    let a = take_char long in
-    if hd==-1 then if a==[] then {eq=true; s=[]} else {eq=true; s=(drop_char long)}
-    else if hd==a then str_compare (drop_char short) (drop_char long) else {eq=false; s=[]} *)
 
 let rec make_tokenize (codes : list int | match codes with [] -> false | _ -> true end)
   (tok : Token) (s : string) : TokResult =
@@ -137,21 +95,28 @@ let match_sequence (file : string) (cond : int -> bool) (ret : string -> Token) 
 let tokenize_int s = match_sequence s (fun c -> 48 <= c && c <= 57) (fun i -> `TokInt i)
 let tokenize_var s = match_sequence s (fun c -> 65 <= c && c <= 90 || 97 <= c && c <= 122) (fun i -> `TokVar i)
 
+let rec compose_list (ls : list (string -> TokResult)) : string -> TokResult =
+  match ls with
+  | [] -> fun x -> `Failure 1
+  | hd :: tl -> compose hd (compose_list tl)
+  end
+
 let rec lex_token (file: string) : list Token =
   let token =
-    compose tokenize_mult
-    (compose tokenize_plus
-    (compose tokenize_minus
-    (compose tokenize_openparen
-    (compose tokenize_closeparen
-    (compose tokenize_equal
-    (compose tokenize_in
-    (compose tokenize_let
-    (compose tokenize_after
-    (compose tokenize_before
-    (compose tokenize_int
-    (compose tokenize_var
-    (fun x -> `Failure 1)))))))))))) file
+    compose_list
+      [ tokenize_mult
+      ; tokenize_plus
+      ; tokenize_minus
+      ; tokenize_openparen
+      ; tokenize_closeparen
+      ; tokenize_equal
+      ; tokenize_in
+      ; tokenize_let
+      ; tokenize_after
+      ; tokenize_before
+      ; tokenize_int
+      ; tokenize_var
+      ] file
   in
   match token with
   | `Success x -> x.tok :: lex_token x.s
@@ -165,10 +130,4 @@ let four = lex_token [52;32;-1]
 (* let _ =
   match four with
   | `TokInt (a :: []) :: `Invalid _ :: [] -> assert (a == 52)
-  end *)
-
-(* Run this without splaying to see that this errors quickly. We really find the error fast! *)
-(* let _ =
-  match four with
-  | `TokInt (a :: []) :: `Invalid _ :: [] -> assert (a == 51) (* WRONG! *)
   end *)
