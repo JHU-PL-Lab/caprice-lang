@@ -1,0 +1,173 @@
+(* TEST
+  include diverges;
+*)
+
+(*
+  This is a much more fully typed version of the AVL tree program
+  from the Bluejay test suite.
+*)
+
+let t : type = mu t.
+  | `Leaf of unit
+  | `Node of int * t * t
+
+let empty = `Leaf ()
+
+let max a b =
+  if a > b then
+    a
+  else
+    b
+
+let rec height (x : t) : int =
+  match x with
+  | `Leaf () -> 0
+  | `Node (_, left, right) -> max (height left) (height right) + 1
+  end
+
+let is_leaf x =
+  match x with
+  | `Leaf () -> true
+  | _ -> false
+  end
+
+let non_leaf = { x : t | not (is_leaf x) }
+
+let item (x : non_leaf) : int =
+  match x with
+  | `Node (i, _, _) -> i
+  end
+
+let left (x : non_leaf) : t =
+  match x with
+  | `Node (_, l, _) -> l
+  end
+
+let right (x : non_leaf) : t =
+  match x with
+  | `Node (_, _, r) -> r
+  end
+
+let balance_factor (x : t) : int =
+  match x with
+  | `Leaf () -> 0
+  | `Node (_, l, r) -> height l - height r
+  end
+
+let abs a =
+  if a > 0 then
+    a
+  else
+    0 - a
+
+let bind x f =
+  match x with
+  | `Some y -> f y
+  | `None () -> x
+  end
+
+(* Checks balancedness in linear time by computing height and balance at same time and level *)
+let is_balanced (x : t) : bool =
+  let rec get_height (x : t) : `Some of int | `None of unit =
+    match x with
+    | `Leaf () -> `Some 0
+    | `Node (_, l, r) ->
+      let.bind left_height = get_height l in
+      let.bind right_height = get_height r in
+      if abs (left_height - right_height) < 2 then
+        `Some (max left_height right_height + 1)
+      else
+        `None ()
+    end
+  in
+  match get_height x with
+  | `Some _ -> true
+  | `None () -> false
+  end
+
+let is_bst (x : t) : bool =
+  let rec to_list (x : t) (acc : list int) : list int =
+    match x with
+    | `Node (i, l, r) -> to_list l (i :: (to_list r acc))
+    | `Leaf () -> acc
+    end
+  in
+  let rec is_increasing_strictly (ls : list int) : bool =
+    match ls with
+    | [] | _ :: [] -> true
+    | hd :: (next :: _ as tl) -> hd < next && is_increasing_strictly tl
+    end
+  in
+  is_increasing_strictly (to_list x [])
+
+let avl_tree = { tree : t | is_balanced tree && is_bst tree }
+
+let create_node item left right =
+  `Node (item, left, right)
+
+let is_leaning x dir =
+  match x, dir with
+  | `Node (_, `Node _, _), `Left ()
+  | `Node (_, _, `Node _), `Right () -> true
+  | _ -> false
+  end
+
+let leaning dir = { x : t | is_leaning x dir }
+
+let rtree = leaning (`Right ())
+let ltree = leaning (`Left ())
+
+let rotate_left (x : rtree) : ltree =
+  match x with
+  | `Node (i, l, `Node (i', l', r')) ->
+    `Node (i', `Node (i, l, l'), r')
+  end
+
+let rotate_right (x : ltree) : rtree =
+  match x with
+  | `Node (i, `Node (i', l', r'), r) ->
+    `Node (i', l', `Node (i, r', r))
+  end
+
+let rotate_left_right (x : ltree | is_leaning (left x) (`Right ())) : rtree =
+  match x with
+  | `Node (i, l, r) ->
+    rotate_right (`Node (i, rotate_left l, r))
+  end
+
+let rotate_right_left (x : rtree | is_leaning (right x) (`Left ())) : ltree =
+  match x with
+  | `Node (i, l, r) ->
+    rotate_left (`Node (i, l, rotate_right r))
+  end
+
+let rec insert (tree : avl_tree) (x : int) : avl_tree =
+  let rebalance x node =
+    let bf = balance_factor node in
+    if bf > 1 then
+      if x < item (left node) then
+        rotate_right node
+      else
+        rotate_left_right node
+    else if bf < -1 then
+      if x > item (right node) then
+        rotate_left node
+      else
+        rotate_right_left node
+    else
+      node
+  in
+  match tree with
+  | `Leaf () ->
+    `Node (x, empty, empty)
+  | `Node (i, l, r) ->
+    let new_node =
+      if x < i then
+        `Node (i, insert l x, r)
+      else if x > i then
+        `Node (i, l, insert r x)
+      else
+        tree
+    in
+    rebalance x new_node
+  end
