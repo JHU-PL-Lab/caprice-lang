@@ -1,0 +1,163 @@
+(* TEST
+  include refute;
+*)
+
+let Id = struct
+  let t = `Id of int
+
+  let get x =
+    match x with
+    | `Id i -> i
+    end
+
+  let make i = `Id i
+
+  let eq i1 i2 =
+    get i1 == get i2
+
+  let initial = `Id 0
+
+  let incr x =
+    get x + 1 (* ERROR: forgot to wrap in `Id *)
+end
+
+
+let Poly_map = struct
+  let t =
+    list sig
+      val a : type
+      val binding : Id.t * a
+    end
+
+  let eq_key binding key =
+    match binding with
+    | k, _ -> Id.eq key k
+    end
+
+  let empty = []
+
+  let set map key data_t data =
+    let item =
+      struct
+        let a = data_t
+        let binding = key, data
+      end
+    in
+    let rec insert ls =
+      match ls with
+      | [] -> [ item ]
+      | hd :: tl ->
+        if eq_key hd.binding key then
+          item :: tl
+        else
+          hd :: insert tl
+      end
+    in
+    insert map
+
+  let find map key =
+    let rec look ls =
+      match ls with
+      | [] -> assert false
+      | hd :: tl ->
+        match hd.binding with
+        | k, d ->
+          if Id.eq k key then
+            d
+          else
+            look tl
+        end
+      end
+    in
+    look map
+
+  let rec size (map : t) : int =
+    match map with
+    | [] -> 0
+    | hd :: tl -> 1 + size tl
+    end
+end
+
+let State = struct
+  let t =
+    { map     : Poly_map.t
+    ; next_id : Id.t
+    }
+
+  let size t = Poly_map.size t.map
+
+  let is_progression t1 t2 =
+    Id.get t2.next_id >= Id.get t1.next_id
+    && size t2 >= size t1 (* ERROR idea: I had accidentally switched the order of t1 and t2 in this *)
+
+  let incr_id t =
+    let next_id = Id.incr t.next_id in
+    { map = t.map ; next_id }
+
+  let set_map t map =
+    { map ; next_id = t.next_id }
+
+  let initial = { map = Poly_map.empty ; next_id = Id.initial }
+
+  let progression s =
+    { s' : t | is_progression s s' }
+end
+
+let m a = (s : State.t) -> State.progression s * a
+
+(* typecheck bind just for fun *)
+let bind (type a b) (x : m a) (f : a -> m b) : m b =
+  fun s ->
+    match x s with
+    | s', a -> f a s'
+    end
+
+(* quickly rewrite untyped bind for ease of usage in the following examples *)
+let bind x f s =
+  match x s with
+  | s', a -> f a s'
+  end
+
+let return a s = s, a
+
+let map x f = bind x (fun a -> return (f a))
+
+let read s = s, s
+
+let run x =
+  match x State.initial with
+  | _, v -> v
+  end
+
+let modify f s = f s, ()
+
+let deref ref_id =
+  map read (fun s ->
+    Poly_map.find s.map ref_id
+  )
+
+let set_ref ref_id t v =
+  modify (fun s ->
+    State.set_map
+      s
+      (Poly_map.set s.map ref_id t v)
+  )
+
+let new_ref t v =
+  let.bind s = read in
+  let new_id = s.next_id in
+  let.bind _ = modify State.incr_id in
+  let.map _ = set_ref new_id t v in
+  new_id
+
+let res : { i : int | i == 10 } =
+  run (
+    let.bind id0 = new_ref int 2 in
+    let.bind id1 = new_ref int 3 in
+    let.bind v0 = deref id0 in
+    let new0 = v0 * 3 + 1 in
+    let.bind _ = set_ref id0 int new0 in
+    let.bind v1 = deref id1 in
+    let.map v0 = deref id0 in
+    v0 + v1
+  )
