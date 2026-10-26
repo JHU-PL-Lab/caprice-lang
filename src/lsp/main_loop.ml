@@ -1,4 +1,12 @@
-module M = Concolic.Loop.Make (Scheduler.Pause_effect)
+
+module Unit = struct
+  type t = unit
+  let neutral = ()
+  let combine () () = ()
+end
+
+module Scheduler = Utils.Scheduler.Make (Utils.Pos) (Unit)
+module M = Concolic.Loop.Make (Utils.Scheduler.Pause_effect)
 
 let splay_check ~options pgm =
   M.begin_ceval ~print_outcome:false ~options:{ options with splay = Splay_only } pgm
@@ -35,7 +43,7 @@ let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
             | Found_error _ -> ()
             | _ -> List.iter Print.print_refinement_warning refinement_positions
             end;
-            Scheduler.Done
+            Scheduler.Done ()
         }
       ; { loc = pos.full.begins
         ; cancel = (fun () -> ())
@@ -46,13 +54,13 @@ let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
             | Found_error _ ->
               List.iter Print.print_clear_range refinement_positions;
               Scheduler.Cancel_peers pos.full.begins
-            | _ -> Scheduler.Done
+            | _ -> Scheduler.Done ()
             end
         }
       ]
   | outcome ->
     Print.print_outcome pos outcome;
-    Scheduler.Done
+    Scheduler.Done ()
   end
 
 (*
@@ -73,7 +81,7 @@ let check_all ~(options : Concolic.Options.t) ~refinement_positions pgms unrefin
           | _ ->
             let a = M.begin_ceval ~print_outcome:false ~options pgm in
             Print.print_outcome pos a;
-            Scheduler.Done
+            Scheduler.Done ()
       }
     ) pgms unrefined_pgms
   )

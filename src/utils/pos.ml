@@ -1,12 +1,15 @@
 
 type t = Lexing.position
 
+let compare a b =
+  Int.compare a.Lexing.pos_cnum b.Lexing.pos_cnum
+
 module Span = struct
   type nonrec t = { begins : t ; ends : t }
 
   let compare a b =
-    match Int.compare a.begins.pos_cnum b.begins.pos_cnum with
-    | 0 -> Int.compare a.ends.pos_cnum b.ends.pos_cnum
+    match compare a.begins b.begins with
+    | 0 -> compare a.ends b.ends
     | cmp -> cmp
 
   let dummy =

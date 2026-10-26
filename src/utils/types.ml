@@ -3,6 +3,11 @@ module type T = sig
   type t
 end
 
+module type CMP = sig
+  type t
+  val compare : t -> t -> int
+end
+
 module type T1 = sig
   type 'a t
 end
@@ -22,4 +27,10 @@ end
 module type MONAD = sig
   type 'a m
   include INDEXED_MONAD with type ('a, 'i) m := 'a m
+end
+
+module type MONOID = sig
+  type t
+  val neutral : t
+  val combine : t -> t -> t
 end
