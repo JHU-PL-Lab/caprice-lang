@@ -29,6 +29,7 @@ let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
     Print.print_splay_error pos.small msg;
     Scheduler.Spawn
       [ { loc = pos.full.begins
+        ; cancel = (fun () -> ())
         ; task = fun () ->
             begin match splay_check ~options unrefined_pgm with
             | Found_error _ -> ()
@@ -37,6 +38,7 @@ let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
             Scheduler.Done
         }
       ; { loc = pos.full.begins
+        ; cancel = (fun () -> ())
         ; task = fun () ->
             let a = normal_check ~options pgm in
             Print.print_outcome pos a;
@@ -62,6 +64,7 @@ let check_all ~(options : Concolic.Options.t) ~refinement_positions pgms unrefin
   Scheduler.round_robin (
     List.map2 (fun (pos, pgm) (_, unrefined_pgm) ->
       { Scheduler.loc = pos.Lang.Ast.full.begins
+      ; cancel = (fun () -> ())
       ; task = fun () ->
           Print.print_pending pos.small;
           match options.splay with
