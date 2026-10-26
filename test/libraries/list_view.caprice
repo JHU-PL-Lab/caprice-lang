@@ -27,7 +27,6 @@ let lst a = { l : t a |
   end
 }
 
-(* Error idea: accept only `lst a` so that the recursive call fails the wrap check *)
 let rec see (type a) (ls : t a) : view a =
   match ls with
   | `Nil () | `Snoc _ -> ls
@@ -62,7 +61,7 @@ let last (type a) (l : ne a) : a =
 
 let rotleft (type a) (l : ne a) : ne a =
   match hide a l with
-  | `Cons (x, xs) -> `Snoc (xs, x) (* Error idea: `Snoc (x, xs) (swap the components) *)
+  | `Cons (x, xs) -> `Snoc (xs, x)
   end
 
 let rotright (type a) (l : ne a) : ne a =
