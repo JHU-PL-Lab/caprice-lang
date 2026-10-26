@@ -1,0 +1,82 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  This test is a Caprice translation of the only full solution posted on
+    https://ocaml.org/exercises?difficulty_level=advanced
+*)
+
+let tree a = mu t.
+  | `Empty of unit
+  | `Node of a * t * t
+
+let t_layout a = tree (a * int * int)
+
+let rec list_map (type a b) (f : a -> b) (ls : list a) : list b =
+  match ls with
+  | [] -> []
+  | hd :: tl -> f hd :: list_map a b f tl
+  end
+
+let rec translate_x (type a) (d : int) (t : t_layout a) : t_layout a =
+  match t with
+  | `Empty () -> t
+  | `Node ((v, x, y), l, r) ->
+    `Node ((v, x + d, y), translate_x a d l, translate_x a d r)
+  end
+
+let max a b =
+  if a > b then a else b
+
+(* Distance between a left subtree given by its right profile [lr]
+    and a right subtree given by its left profile [rl]. *)
+let rec dist (lr : list int) (rl : list int) : int =
+  match lr, rl with
+  | lrx :: ltl, rlx :: rtl -> max (lrx - rlx) (dist ltl rtl)
+  | [], _ | _, [] -> 0
+  end
+
+let rec merge_profiles (type a) (p1 : list a) (p2 : list a) : list a =
+  match p1, p2 with
+  | x1 :: tl1, _ :: tl2 -> x1 :: merge_profiles a tl1 tl2
+  | [], _ -> p2
+  | _, [] -> p1
+  end
+
+let plus a b = a > b (* ERROR: is a logical operator, not an int operator *)
+
+let rec layout (type a) (depth : int) (t : tree a) : list int * t_layout a * list int =
+  match t with
+  | `Empty () ->
+    ([], `Empty (), [])
+  | `Node (v, l, r) ->
+    match layout a (depth + 1) l with
+    | ll, l', lr ->
+      match layout a (depth + 1) r with
+      | rl, r', rr ->
+        let d = 1 + dist lr rl / 2 in
+        let ll = list_map int int (fun x -> x - d) ll in
+        let lr = list_map int int (fun x -> x - d) lr in
+        let rl = list_map int int (plus d) rl in
+        let rr = list_map int int (plus d) rr in
+        let layout = `Node((v, 0, depth), translate_x a (1-d) l', translate_x a d r') in
+        (0 :: merge_profiles int ll rl, layout, 0 :: merge_profiles int rr lr)
+      end
+    end
+  end
+
+let rec list_min (l : list int) : int =
+  match l with
+  | [] -> 0
+  | hd :: tl ->
+    let m = list_min tl in
+    if hd < m then hd else m
+  end
+
+let layout_binary_tree_3 (type a) (t : tree a) : t_layout a =
+  match layout a 1 t with
+  | l, t', _ ->
+    let x_min = list_min l in
+    translate_x a (1 - x_min) t'
+  end
