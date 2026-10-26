@@ -1,9 +1,5 @@
 (* TEST
-  typing = ill-typed;
-  flags = " -s only";
-  speed = fast;
-  # The type checking pipeline does not efficiently find errors deep
-  # in non-splayed programs. For now, force this to splay.
+  include refute;
 *)
 
 (*

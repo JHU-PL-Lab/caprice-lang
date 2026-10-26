@@ -11,6 +11,7 @@ type t =
   ; splay          : splay
   ; do_wrap        : bool
   ; is_random      : bool
+  ; sequential     : bool
   }
 
 let default : t =
@@ -20,6 +21,7 @@ let default : t =
   ; splay          = Fallback
   ; do_wrap        = true
   ; is_random      = false
+  ; sequential     = false
   }
 
 let of_argv =
@@ -42,6 +44,8 @@ let of_argv =
     & info ["w"; "wrap"] ~doc:"Wrap flag: yes or no. Default is yes."
   and+ is_random =
     value & flag & info ["r"; "random"] ~doc:"Randomize"
+  and+ sequential =
+    value & flag & info ["q"; "sequential"] ~doc:"Typecheck the program sequentially, as one"
   in
-  { max_tree_depth ; max_step ; global_timeout ; splay ; do_wrap ; is_random }
+  { max_tree_depth ; max_step ; global_timeout ; splay ; do_wrap ; is_random ; sequential }
 

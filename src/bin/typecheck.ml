@@ -4,7 +4,7 @@ let typecheck_main =
   let open Cmdliner.Term.Syntax in
   let+ caprice_pgm = Parsing.Parse.parse_program_from_argv
   and+ options = Concolic.Options.of_argv in
-  Concolic.Loop.begin_ceval ~options caprice_pgm
+  Concolic.Loop.typecheck ~options caprice_pgm
 
 let () =
   Utils.Etc.set_1M_minor_heap ();

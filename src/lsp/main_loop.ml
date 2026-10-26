@@ -5,14 +5,14 @@ module Unit = struct
   let combine () () = ()
 end
 
-module Scheduler = Utils.Scheduler.Make (Utils.Pos) (Unit)
-module M = Concolic.Loop.Make (Utils.Scheduler.Pause_effect)
+module Scheduler = Utils.Round_robin.Make (Utils.Pos) (Unit)
+module Y = Concolic.Loop.Yielding
 
 let splay_check ~options pgm =
-  M.begin_ceval ~print_outcome:false ~options:{ options with splay = Splay_only } pgm
+  Y.run' ~options:{ options with splay = Splay_only } pgm
 
 let normal_check ~options pgm =
-  M.begin_ceval ~print_outcome:false ~options:{ options with splay = Never_splay } pgm
+  Y.run' ~options:{ options with splay = Never_splay } pgm
 
 (*
   When splaying has failed, we then race two tasks:
@@ -48,9 +48,9 @@ let handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm =
       ; { loc = pos.full.begins
         ; cancel = (fun () -> ())
         ; task = fun () ->
-            let a = normal_check ~options pgm in
-            Print.print_outcome pos a;
-            begin match a with
+            let outcome = normal_check ~options pgm in
+            Print.print_outcome pos outcome;
+            begin match outcome with
             | Found_error _ ->
               List.iter Print.print_clear_range refinement_positions;
               Scheduler.Cancel_peers pos.full.begins
@@ -79,8 +79,8 @@ let check_all ~(options : Concolic.Options.t) ~refinement_positions pgms unrefin
           | Fallback ->
             handle_fallback ~options ~refinement_positions pos pgm unrefined_pgm
           | _ ->
-            let a = M.begin_ceval ~print_outcome:false ~options pgm in
-            Print.print_outcome pos a;
+            let outcome = Y.run' ~options pgm in
+            Print.print_outcome pos outcome;
             Scheduler.Done ()
       }
     ) pgms unrefined_pgms
@@ -94,14 +94,14 @@ let check_all ~(options : Concolic.Options.t) ~refinement_positions pgms unrefin
 let find_baseline_error ~options stmts_with_pos =
   let all_disabled = Stmt_check.disable_all_checks stmts_with_pos in
   let baseline =
-    Concolic.Loop.begin_ceval ~print_outcome:false ~options (List.map fst all_disabled)
+    Concolic.Loop.Sequential.run' ~options (List.map fst all_disabled)
   in
   match baseline with
   | Found_error _ ->
     let min_pos_span = Utils.Pos.Span.dummy in
     Stmt_check.mk_pgms all_disabled ~start_pos:min_pos_span
     |> List.find_map (fun (span, pgm) ->
-      match Concolic.Loop.begin_ceval ~print_outcome:false ~options pgm with
+      match Concolic.Loop.Sequential.run' ~options pgm with
       | Exhausted -> None
       | outcome -> Some (span, outcome))
   | _ -> None

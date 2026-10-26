@@ -52,8 +52,35 @@ let collect_logged_runs ~(max_tree_depth : int) (runs : Logged_run.t list) :
 
 let solve = Smt.Solve.main_solve (module Overlays.Typed_z3.Default)
 
+module Res = struct
+  type t = { outcome : Outcome.t ; run_count : int }
+
+  exception Return of t
+
+  let neutral =
+    { outcome = Outcome.Exhausted ; run_count = 0 }
+
+  (* Exit early by raising if an error is found *)
+  let combine a b =
+    let outcome = Outcome.min a.outcome b.outcome
+    and run_count = a.run_count + b.run_count in
+    let c = { outcome ; run_count } in
+    if Outcome.is_error outcome then
+      raise (Return c) (* TODO: fix how this drops the run counts of all unfinished workers *)
+    else
+      c
+
+  let print span { outcome ; run_count } =
+    Printf.printf
+      "Finished in %0.3f ms and %d attempted refutations:\n    %s\n    %s\n"
+      (Utils.Time.span_to_ms span) run_count
+      (Outcome.to_string outcome) (Outcome.explain outcome);
+end
+
+open Res
+
 module Make (Y : sig val yield : unit -> unit end) = struct
-  let begin_loop ~(options : Options.t) (pgm : Lang.Ast.program) : Outcome.t * run_count:int =
+  let run ~(options : Options.t) (pgm : Lang.Ast.program) : Res.t =
     let run_count = Utils.Counter.create () in
 
     (* Run the program concolically in a loop *)
@@ -124,18 +151,57 @@ module Make (Y : sig val yield : unit -> unit end) = struct
       | Ok a -> a
       | Error t -> Outcome.Timeout t
     in
-    outcome, ~run_count:(Utils.Counter.get run_count)
+    { outcome ; run_count = Utils.Counter.get run_count }
 
-  let begin_ceval ?(print_outcome : bool = true) ~(options : Options.t)
-    (pgm : Lang.Ast.program) : Outcome.t =
-    if options.is_random then Random.self_init () else Random.init 999;
-    let span, (outcome, ~run_count) = Utils.Time.time (begin_loop ~options) pgm in
-    if print_outcome then
-      Printf.printf
-        "Finished in %0.3f ms and %d attempted refutations:\n    %s\n    %s\n"
-        (Utils.Time.span_to_ms span) run_count
-        (Outcome.to_string outcome) (Outcome.explain outcome);
-    outcome
+  let run' ~options pgm = (run ~options pgm).outcome
 end
 
-include Make (struct let yield () = () end)
+module Sequential = Make (struct let yield () = () end)
+module Yielding = Make (Utils.Round_robin.Pause_effect)
+
+module Scheduler = Utils.Round_robin.Make (Unit) (Res)
+
+let run_scheduled ~options pgms =
+  let work pgm =
+    { Scheduler.loc = ()
+    ; cancel = (fun () -> ())
+    ; task = fun () -> Done (Yielding.run ~options pgm)
+    }
+  in
+  try Scheduler.round_robin (List.map work pgms) with
+  | Res.Return r -> r
+
+(*
+  Split the program up into successive prefixes, where the last statement is the
+  only statement that will be checked. The other statements keep their type
+  annotations (if any) only for wrapping.
+*)
+let split_pgm pgm =
+  let rec mk untyped remaining =
+    match remaining with
+    | [] -> []
+    | stmt :: [] ->
+      [ List.rev (stmt :: untyped) ]
+    | stmt :: rest ->
+      match Lang.Ast.annot_of_stmt stmt with
+      | AType _ ->
+        let res = mk (Lang.Ast.disable_stmt_check stmt :: untyped) rest in
+        List.rev (stmt :: untyped) :: res
+      | ANone ->
+        (* This will be run with the next typed statement *)
+        mk (stmt :: untyped) rest
+  in
+  mk [] pgm
+
+let typecheck ?(print_outcome : bool = true) ~(options : Options.t)
+    (pgm : Lang.Ast.program) : Outcome.t =
+  if options.is_random then Random.self_init () else Random.init 999;
+  let run () =
+    if options.sequential then
+      Sequential.run ~options pgm
+    else
+      run_scheduled ~options (split_pgm pgm)
+  in
+  let span, res = Utils.Time.time run () in
+  if print_outcome then Res.print span res;
+  res.outcome

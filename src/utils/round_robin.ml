@@ -26,7 +26,7 @@ module Make (Id : Types.CMP) (Res : Types.MONOID) = struct
       if f x then Queue.push x q
     done
 
-  let round_robin (fs : work_item list) : unit =
+  let round_robin (fs : work_item list) : Res.t =
     let run_q = Queue.of_seq (List.to_seq fs) in
     let enqueue item = Queue.push item run_q in
     let enqueue_cont loc k =
@@ -63,7 +63,7 @@ module Make (Id : Types.CMP) (Res : Types.MONOID) = struct
         in
         dequeue ()
     in
-    try dequeue () with
+    try dequeue (); !acc with
     | exn ->
       filter_queue (fun { cancel ; _ } -> cancel (); false) run_q;
       raise exn

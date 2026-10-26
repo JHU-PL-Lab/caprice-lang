@@ -4,7 +4,7 @@ let make_one ~options fname =
     let pgm = Parsing.Parse.parse_file fname in
     let run pgm =
       match
-        Concolic.Loop.begin_ceval pgm
+        Concolic.Loop.typecheck pgm
           ~print_outcome:false
           ~options
       with

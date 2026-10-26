@@ -57,3 +57,15 @@ type program_with_pos = (statement * pos) list
 let id_of_stmt = function
   | SLet { name ; _ }
   | SLetRec { name ; _ } -> name
+
+let annot_of_stmt = function
+  | SLet { annot ; _ }
+  | SLetRec { annot ; _ } -> annot
+
+let disable_annot_check = function
+  | ANone -> ANone
+  | AType r -> AType { r with do_check = false }
+
+let disable_stmt_check = function
+  | SLet r -> SLet { r with annot = disable_annot_check r.annot }
+  | SLetRec r -> SLetRec { r with annot = disable_annot_check r.annot }
