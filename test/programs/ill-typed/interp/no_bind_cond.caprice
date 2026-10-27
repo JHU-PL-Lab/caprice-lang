@@ -1,0 +1,267 @@
+(* TEST
+  include refute;
+*)
+
+(*
+  T n is a module with a type with n parameters, e.g.
+
+    T 2 is
+      sig val t : type -> type -> type end
+
+    T 0 is
+      sig val t : type end
+*)
+let T n = sig
+  val t :
+    let rec loop i =
+      if i <= 0
+      then type
+      else type -> loop (i - 1)
+    in
+    loop n
+end
+
+let Type : sig
+  val t : type
+  val type_int : t
+  val eq : t -> t -> bool
+  val is_int : t -> bool
+end = struct
+  let t = mu t.
+    | `TArrow of t * t
+    | `TInt of unit
+
+  let type_int = `TInt ()
+
+  let rec eq (a : t) (b : t) : bool =
+    match a, b with
+    | `TArrow (t1, t2), `TArrow (t1', t2') ->
+      eq t1 t1'
+      && eq t2 t2'
+    | `TInt _, `TInt _ ->
+      true
+    | _ ->
+      false
+    end
+
+  let is_int = eq type_int
+end
+
+let Ident : sig
+  val t : type
+  val eq : t -> t -> bool
+end = struct
+  let t = `Id of int
+  let eq a b =
+    match a, b with
+    | `Id x, `Id y -> x == y
+    end
+end
+
+let Expr : T 0 = struct
+  let t = mu t.
+    | `Int of int
+    | `Var of Ident.t
+    | `Function of Ident.t * Type.t * t
+    | `If_then_else of t * t * t
+    | `Plus of t * t
+    | `Minus of t * t
+    | `Equal of t * t
+    | `Appl of t * t
+end
+
+let rec mem ls a eq =
+  match ls with
+  | [] -> false
+  | hd :: tl ->
+    eq a hd || mem tl a eq
+  end
+
+let free_vars e bound =
+  let rec loop e bound_ids acc =
+    match e with
+    | `Var var_id ->
+      if mem bound_ids var_id Ident.eq then
+        acc
+      else
+        var_id :: acc
+    | `Int i -> acc
+    | `Function (id, _, body) -> loop body (id :: bound_ids) acc
+    | `If_then_else (cond, true_, false_) ->
+      let acc1 = loop cond bound_ids acc in
+      let acc2 = loop true_ bound_ids acc1 in
+      loop false_ bound_ids acc2
+    | `Plus (a, b)
+    | `Minus (a, b)
+    | `Equal (a, b)
+    | `Appl (a, b) ->
+      loop b bound_ids (loop a bound_ids acc)
+    end
+  in
+  loop e bound []
+
+let is_closed e bound =
+  match free_vars e bound with
+  | [] -> true
+  | _ -> false
+  end
+
+let Value : T 0 = struct
+  let t =
+    `Int of int
+    | `Function of
+      { x : Ident.t * Type.t * Expr.t |
+        match x with
+        | (id, _, body) -> is_closed body [ id ]
+        end
+      }
+end
+
+let Result = struct
+  let t a =
+    | `Ok of a
+    | `Error of unit
+
+  let bind x f =
+    match x with
+    | `Error _ -> x
+    | `Ok a -> f a
+    end
+
+  let return a = `Ok a
+
+  let error = `Error ()
+
+  let is_ok x =
+    match x with
+    | `Ok _ -> true
+    | _ -> false
+    end
+end
+
+let add_to_env gamma id tau id' =
+  if Ident.eq id' id then
+    Result.return tau
+  else
+    gamma id'
+
+let rec typecheck (e : Expr.t) (gamma : Ident.t -> Result.t Type.t) : Result.t Type.t =
+  let tc e =
+    typecheck e gamma
+  in
+  match e with
+  (* Axioms *)
+  | `Var id -> gamma id
+  | `Int i -> Result.return Type.type_int
+  (* Functions *)
+  | `Function (id, typ, body) ->
+    let.Result.bind tau = typecheck body (add_to_env gamma id typ) in
+    Result.return (`TArrow (typ, tau))
+  | `Appl (func, arg) ->
+    let.Result.bind res = tc func in
+    match res with
+    | `TArrow (dom, cod) ->
+      let.Result.bind tau_arg = tc arg in
+      if Type.eq dom tau_arg then
+        Result.return cod
+      else
+        Result.error
+    | _ -> Result.error
+    end
+  (* Conditions *)
+  | `If_then_else (cond, true_, false_) ->
+    let tau_cond = tc cond in (* ERROR: forgot to bind *)
+    if Type.is_int tau_cond then
+      let.Result.bind tau_left = tc true_ in
+      let.Result.bind tau_right = tc false_ in
+      if Type.eq tau_left tau_right then
+        Result.return tau_left
+      else
+        Result.error
+    else
+      Result.error
+  (* Simple expressions *)
+  | `Plus (a, b)
+  | `Minus (a, b)
+  | `Equal (a, b) ->
+    let.Result.bind tau_left = tc a in
+    let.Result.bind tau_right = tc b in
+    if Type.is_int tau_left && Type.is_int tau_right then
+      Result.return Type.type_int
+    else
+      Result.error
+  end
+
+(* default environment is empty, so it is error given any id *)
+let typecheck e = typecheck e (fun _ -> Result.error)
+
+(*
+  Note that we don't actually have to check for closed because
+  that would be an unbound variable when typechecking.
+*)
+let is_closed_and_well_typed e =
+  Result.is_ok (typecheck e)
+
+let rec list_equal eq xs ys =
+  match xs, ys with
+  | [], [] -> true
+  | x :: xss, y :: yss -> eq x y && list_equal eq xss yss
+  | _ -> false
+  end
+
+let rec subst (dep e : Expr.t) (dep id : Ident.t) (v : Value.t) :
+    { e' : Expr.t | list_equal Ident.eq (free_vars e [id]) (free_vars e' []) } =
+  let sub e = subst e id v in
+  let sub_pair p =
+    match p with
+    | a, b -> sub a, sub b
+    end
+  in
+  match e with
+  | `Var var_id ->
+      if Ident.eq var_id id then
+        v
+      else
+        e
+  | `Int i -> e
+  | `Function (id', typ, body) ->
+      if Ident.eq id' id then
+        e
+      else
+        `Function (id', typ, sub body)
+  | `Plus p -> `Plus (sub_pair p)
+  | `Minus p -> `Minus (sub_pair p)
+  | `Equal p -> `Equal (sub_pair p)
+  | `Appl p -> `Appl (sub_pair p)
+  | `If_then_else (cond, true_, false_) ->
+    `If_then_else (sub cond, sub true_, sub false_)
+  end
+
+let rec eval (e : Expr.t | is_closed_and_well_typed e) : Value.t =
+  let op_ints p op =
+    match p with
+    | x, y ->
+      match eval x, eval y with
+      | `Int i1, `Int i2 -> `Int (op i1 i2)
+      end
+    end
+  in
+  match e with
+  | `Int i -> e
+  | `Function _ -> e
+  | `Plus p -> op_ints p (fun a b -> a + b)
+  | `Minus p -> op_ints p (fun a b -> a - b)
+  | `Equal p -> op_ints p (fun a b -> if a == b then 1 else 0)
+  | `Appl (func, arg) ->
+    match eval func with
+    | `Function (id, _, body) -> eval (subst body id (eval arg))
+    end
+  | `If_then_else (cond, true_, false_) ->
+    match eval cond with
+    | `Int i ->
+      if i <> 0 then (* non-zero int is true; like in C *)
+        eval true_
+      else
+        eval false_
+    end
+  end
