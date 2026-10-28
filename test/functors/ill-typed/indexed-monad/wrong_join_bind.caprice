@@ -1,0 +1,93 @@
+(* TEST
+  include refute;
+*)
+
+let rec len ls =
+  match ls with
+  | [] -> 0
+  | _ :: tl -> 1 + len tl
+  end
+
+let types n = { ls : list (singleton type) | len ls == n }
+
+let INDEXED_MONAD = sig
+  (* how many indices *)
+  val n : int
+
+  (* first some indices, then the underlying type *)
+  val m : types n -> type -> type
+
+  val return : (indices : types n) -> (type a) -> a -> m indices a
+
+  val bind : (indices : types n) -> (type a b) -> m indices a -> (a -> m indices b) -> m indices b
+end
+
+let INDEXED_MONAD' n = { M : INDEXED_MONAD | M.n == n }
+
+let Identity : INDEXED_MONAD' 0 = struct
+  let n = 0
+  let m _ a = a
+  let return _ _ x = x
+  let bind _ _ _ x f = f x
+end
+
+let State : INDEXED_MONAD' 1 = struct
+  let get indices = match indices with s :: [] -> s end
+  let n = 1
+  let m idx a = let s = get idx in s -> s * a
+  let return _ _ x s = s, x
+  let bind _ _ _ x f s =
+    match x s with
+    | s', a -> f a s'
+    end
+end
+
+let State_env : INDEXED_MONAD' 2 = struct
+  let n = 2
+  let m idx a =
+    match idx with
+    | s :: e :: [] -> s -> e -> s * a
+    end
+  let return _ _ x s _ = s, x
+  let bind _ _ _ x f s e =
+    match x s e with
+    | s', a -> f a s' e
+    end
+end
+
+let State_env_result : INDEXED_MONAD' 3 = struct
+  let n = 3
+  let m idx a =
+    match idx with
+    | state :: env :: err :: [] ->
+      state -> env ->
+        `Ok of state * a
+        | `Error of err
+    end
+  let return _ _ x s _ = `Ok (s, x)
+  let bind _ _ _ x f s e =
+    match x s e with
+    | `Ok (s', a) -> f a s' e
+    | `Error _ as y -> y
+    end
+end
+
+let Derive (dep M : INDEXED_MONAD) : sig
+  val map : (indices : types M.n) -> (type a b) -> M.m indices a -> (a -> b) -> M.m indices b
+  val join : (indices : types M.n) -> (type a) -> M.m indices (M.m indices a) -> M.m indices a
+end = struct
+  let map idx a b x f =
+    M.bind idx a b x (fun y -> M.return idx b (f y))
+
+  let join idx a x =
+    (* ERROR: should be (M.m idx a) for first type parameter, not just a *)
+    M.bind idx a a x (fun y -> y)
+end
+
+let Identity_map_join = Derive Identity
+
+let State_map_join = Derive State
+
+let State_env_map_join = Derive State_env
+
+let State_env_result_map_join = Derive State_env_result
