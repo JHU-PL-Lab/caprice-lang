@@ -36,7 +36,8 @@ module Make(Parser_entry: PARSER_ENTRY) = struct
     let open Cmdliner.Term.Syntax in
     let+ src_file =
       let open Cmdliner.Arg in
-      required & pos 0 (some' file) None & info [] ~docv:"FILE" ~doc:"Input filename"
+      required & pos 0 (some' non_dir_file) None
+      & info [] ~docv:"FILE" ~doc:"Input filename"
     in
     parse_file src_file
 end
