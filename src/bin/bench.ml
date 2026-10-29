@@ -36,16 +36,25 @@ let bench_main =
   and+ sec = Cmdliner.Arg.(
       value & opt int 4
       & info ["sec"] ~docv:"SECONDS"
-      ~doc:"Minumum benchmarking time, in seconds. Ignored if trials are given"
+      ~doc:"Minimum benchmarking time, in seconds. Ignored if trials are given"
     )
   and+ trials = Cmdliner.Arg.(
       value & opt (some int) None
       & info ["trials"] ~docv:"TRIALS" ~doc:"Number of trials"
     )
+  and+ sauf = Cmdliner.Arg.(
+      value & opt (list ~sep:' ' file) []
+      & info ["sauf"] ~docv:"SAUF" ~doc:"Files to exclude, separated by spaces"
+    )
   in
+  let find_all paths =
+    List.concat_map (Utils.Files.find_caprice_files ~recpaths) paths
+  in
+  let exclude = find_all sauf in
   let tests =
     paths
-    |> List.concat_map (Utils.Files.find_caprice_files ~recpaths)
+    |> find_all
+    |> List.filter (fun fname -> not (List.mem fname exclude))
     |> List.filter_map (make_one ~options)
   in
   let _res =
