@@ -6,12 +6,11 @@
   Much of this code is a direct port of OCaml's standard library.
 *)
 
-let rec length_aux (type a) (len : int) (ls : list a) : int =
+let rec length_aux (type a) (len : int | len >= 0) (ls : list a) : { n : int | n >= 0 } =
   match ls with
   | [] -> len
   | _ :: l -> length_aux a (len + 1) l
   end
-
 
 let length (type a) (l : list a) : int =
   length_aux a 0 l
@@ -97,7 +96,7 @@ let rec of_seq (type a) (seq : seq a) : list a =
 *)
 
 (* non-tail-rec length *)
-let rec length (type a) (ls : list a) : int =
+let rec length (type a) (ls : list a) : { n : int | n >= 0 } =
   match ls with
   | [] -> 0
   | _ :: tl -> 1 + length a tl
@@ -157,3 +156,42 @@ let reduce_matrix (type a) (f : a -> a -> a) (init : a) (m : list (list a)) : a 
 
 let sum_matrix (m : list (list int)) : int =
   reduce_matrix int (fun x y -> x + y) 0 m
+
+let non_neg = { i : int | i >= 0 }
+
+let rec split_list (type a) (ls : list a) (n : non_neg) : { first_n : list a ; remaining : list a } =
+  ifzero n then
+    { first_n = [] ; remaining = ls }
+  else
+    match ls with
+    | [] -> { first_n = [] ; remaining = [] }
+    | hd :: tl ->
+      let r = split_list a tl (n - 1) in
+      { first_n = hd :: r.first_n ; remaining = r.remaining }
+    end
+
+let rec merge (type a) (p : list a) (q : list a) (cmp : a -> a -> int) : list a =
+  match p, q with
+  | [], x | x, [] -> x
+  | x :: p_tl, y :: q_tl ->
+    if cmp x y < 0
+    then x :: merge a p_tl q cmp
+    else y :: merge a p q_tl cmp
+  end
+
+(*
+  We cannot verify that this correctly sorts if we are type splaying.
+  But simple ocaml-like types like this work well.
+
+  Note that because this calls wrapped functions above, this is testing
+  that we have correctly wrapped stubbed recursive types.
+*)
+let rec merge_sort (type a) (ls : list a) (cmp : a -> a -> int) : list a =
+  match ls with
+  | [] | _ :: [] -> ls
+  | _ ->
+    let r = split_list a ls (length a ls / 2) in
+    let sorted_left = merge_sort a r.first_n cmp in
+    let sorted_right = merge_sort a r.remaining cmp in
+    merge a sorted_left sorted_right cmp
+  end
