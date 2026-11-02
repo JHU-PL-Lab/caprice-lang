@@ -23,7 +23,7 @@ let rec to_string (p : t) : string =
   | PEmptyList ->
     "[]"
   | PDestructList (p_hd, p_tl) ->
-    Printf.sprintf "%s :: %s" (to_string p_hd) (to_string p_tl)
+    Printf.sprintf "(%s :: %s)" (to_string p_hd) (to_string p_tl)
   | PPatternOr p_ls ->
     Printf.sprintf "(%s)" (String.concat " | " @@ List.map to_string p_ls)
   | PPatternAs (pat, id) ->
