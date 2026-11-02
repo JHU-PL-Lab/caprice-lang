@@ -1,0 +1,153 @@
+(* TEST
+  include refute;
+*)
+
+let string = list int
+let eof = -1
+
+let token =
+  | `TokMult of unit
+  | `TokPlus of unit
+  | `TokInt of int
+  | `TokVar of string
+  | `TokMinus of unit
+  | `TokOpenParen of unit
+  | `TokCloseParen of unit
+  | `TokLet of unit
+  | `TokIn of unit
+  | `TokEqual of unit
+  | `TokAfter of unit
+  | `TokBefore of unit
+  | `TokEof of unit
+
+let lex_result =
+  | `Success of { rem : string ; tok : token }
+  | `Failure of int
+
+let rec len ls =
+  match ls with
+  | [] -> 0
+  | _ :: tl -> 1 + len tl
+  end
+
+let nonempty_list t = { ls : list t | match ls with [] -> false | _ -> true end }
+
+let rec make_tokenize (dep codes : nonempty_list int) (tok : token) (dep s : string)
+  : { res : lex_result |
+    match res with
+    | `Success r -> len r.rem == len s - len codes
+    | `Failure _ -> true
+    end
+  } =
+  match s, codes with
+  | [], _ -> `Failure 1
+  | hd :: rem, code :: [] ->
+    if hd == code then
+      `Success { rem ; tok }
+    else
+      `Failure 0
+  | hd :: tl, code :: xs ->
+    if hd == code then
+      make_tokenize xs tok tl
+    else
+      `Failure 0
+  end
+
+let tokenize_mult = make_tokenize [ 42 ] (`TokMult ())
+let tokenize_plus = make_tokenize [ 43 ] (`TokPlus ())
+let tokenize_minus = make_tokenize [ 45 ] (`TokMinus ())
+let tokenize_openparen = make_tokenize [ 40 ] (`TokOpenParen ())
+let tokenize_closeparen = make_tokenize [ 41 ] (`TokCloseParen ())
+let tokenize_equal = make_tokenize [ 61 ] (`TokEqual ())
+let tokenize_in = make_tokenize [ 105 ; 110 ] (`TokIn ())
+let tokenize_let = make_tokenize [ 108 ; 101 ; 116 ] (`TokLet ())
+let tokenize_after = make_tokenize [ 97 ; 102 ; 116 ; 101 ; 114 ] (`TokAfter ())
+let tokenize_before = make_tokenize [ 98 ; 101 ; 102 ; 111 ; 114 ; 101 ] (`TokBefore ())
+let tokenize_eof = make_tokenize [eof] (`TokEof ())
+
+let rev (type a) (l : list a) : list a =
+  let rec aux (acc : list a) (ls : list a) : list a =
+    match ls with
+    | [] -> acc
+    | hd :: tl -> aux (hd :: acc) tl
+    end
+  in
+  aux [] l
+
+let match_sequence (file : string) (cond : int -> bool) (ret : string -> token) : lex_result =
+  let rec match_seq (acc : string) (file : string) : lex_result =
+    match file with
+    | [] -> `Failure 1 (* unexpected eof *)
+    | hd :: rem ->
+      if hd == 32 then (* found space, ending sequence *)
+        `Success { rem ; tok = ret (rev int acc) }
+      else
+        if cond hd then (* character satisfies condition *)
+          match_seq (hd :: acc) rem
+        else
+          `Failure 0
+    end
+  in
+  match_seq [] file
+
+(* Compute the int from its digits *)
+let make_int ls =
+  let rec go n l =
+    match l with
+    | [] -> 0
+    | hd :: tl -> n * (hd - 48) + go (n * 10) tl
+    end
+  in
+  go 1 ls
+
+let tokenize_int s = match_sequence s (fun c -> 48 <= c && c <= 57) (fun ls -> `TokInt ls) (* ERROR: forgot to make the int *)
+let tokenize_var s = match_sequence s (fun c -> 65 <= c && c <= 90 || 97 <= c && c <= 122) (fun i -> `TokVar i)
+
+let compose f g chars =
+  match f chars with
+  | `Success x -> `Success x
+  | `Failure _ -> g chars
+  end
+
+let rec compose_list (ls : list (string -> lex_result)) : string -> lex_result =
+  match ls with
+  | [] -> fun x -> `Failure 1
+  | hd :: tl -> compose hd (compose_list tl)
+  end
+
+let Result = struct
+  let t a = `Ok of a | `Error of int
+  let map x f = match x with `Ok a -> `Ok (f a) | _ -> x end
+end
+
+let rec lex_tokens (file : string) : Result.t (list token) =
+  let token =
+    compose_list
+      [ tokenize_mult
+      ; tokenize_plus
+      ; tokenize_minus
+      ; tokenize_openparen
+      ; tokenize_closeparen
+      ; tokenize_equal
+      ; tokenize_in
+      ; tokenize_let
+      ; tokenize_after
+      ; tokenize_before
+      ; tokenize_int
+      ; tokenize_var
+      ; tokenize_eof
+      ] file
+  in
+  match token with
+  | `Success x ->
+    match x.rem with
+    | `TokEof () -> `Ok [x.tok]
+    | _ ->
+      let.Result.map rem = lex_tokens x.rem in
+      x.tok :: rem
+    end
+  | `Failure y -> `Error y
+  end
+
+(* Parse the integer four. *)
+let four = lex_tokens [52;32;eof]

@@ -1,14 +1,14 @@
 (* TEST
-  include exhaust;
+  include diverges;
 *)
 
 let string = list int
 let eof = -1
 
-let Token =
+let token =
   | `TokMult of unit
   | `TokPlus of unit
-  | `TokInt of string
+  | `TokInt of int
   | `TokVar of string
   | `TokMinus of unit
   | `TokOpenParen of unit
@@ -18,35 +18,32 @@ let Token =
   | `TokEqual of unit
   | `TokAfter of unit
   | `TokBefore of unit
-  | `Invalid of int
+  | `TokEof of unit
 
-let Tree = mu Tree.
-  | `EInt of int
-  | `EVar of string
-  | `EOpPlus of Tree * Tree
-  | `EOpMinus of Tree * Tree
-  | `OpTimes of Tree * Tree
-  | `EAfter of Tree
-  | `EBefore of Tree
-  | `ELet of {var: string; e1:Tree; e2:Tree}
-  | `Invalid of int
+let lex_result =
+  | `Success of { rem : string ; tok : token }
+  | `Failure of int
 
-let Result = fun t -> `Success of t | `Failure of int
-let TokResult = Result {s:string; tok:Token}
-
-let compose f g chars =
-  match f chars with
-  | `Success x -> `Success x
-  | `Failure _ -> g chars
+let rec len ls =
+  match ls with
+  | [] -> 0
+  | _ :: tl -> 1 + len tl
   end
 
-let rec make_tokenize (codes : list int | match codes with [] -> false | _ -> true end)
-  (tok : Token) (s : string) : TokResult =
+let nonempty_list t = { ls : list t | match ls with [] -> false | _ -> true end }
+
+let rec make_tokenize (dep codes : nonempty_list int) (tok : token) (dep s : string)
+  : { res : lex_result |
+    match res with
+    | `Success r -> len r.rem == len s - len codes
+    | `Failure _ -> true
+    end
+  } =
   match s, codes with
   | [], _ -> `Failure 1
-  | hd :: tl, code :: [] ->
+  | hd :: rem, code :: [] ->
     if hd == code then
-      `Success { s = tl ; tok = tok }
+      `Success { rem ; tok }
     else
       `Failure 0
   | hd :: tl, code :: xs ->
@@ -66,6 +63,7 @@ let tokenize_in = make_tokenize [ 105 ; 110 ] (`TokIn ())
 let tokenize_let = make_tokenize [ 108 ; 101 ; 116 ] (`TokLet ())
 let tokenize_after = make_tokenize [ 97 ; 102 ; 116 ; 101 ; 114 ] (`TokAfter ())
 let tokenize_before = make_tokenize [ 98 ; 101 ; 102 ; 111 ; 114 ; 101 ] (`TokBefore ())
+let tokenize_eof = make_tokenize [eof] (`TokEof ())
 
 let rev (type a) (l : list a) : list a =
   let rec aux (acc : list a) (ls : list a) : list a =
@@ -76,32 +74,53 @@ let rev (type a) (l : list a) : list a =
   in
   aux [] l
 
-let match_sequence (file : string) (cond : int -> bool) (ret : string -> Token) : TokResult =
-  let rec match_seq (acc : string) (file : string) : TokResult =
+let match_sequence (file : string) (cond : int -> bool) (ret : string -> token) : lex_result =
+  let rec match_seq (acc : string) (file : string) : lex_result =
     match file with
     | [] -> `Failure 1 (* unexpected eof *)
-    | hd :: tl ->
+    | hd :: rem ->
       if hd == 32 then (* found space, ending sequence *)
-        `Success { s = tl ; tok = ret (rev int acc) }
+        `Success { rem ; tok = ret (rev int acc) }
       else
         if cond hd then (* character satisfies condition *)
-          match_seq (hd :: acc) tl
+          match_seq (hd :: acc) rem
         else
           `Failure 0
     end
   in
   match_seq [] file
 
-let tokenize_int s = match_sequence s (fun c -> 48 <= c && c <= 57) (fun i -> `TokInt i)
+(* Compute the int from its digits *)
+let make_int ls =
+  let rec go n l =
+    match l with
+    | [] -> 0
+    | hd :: tl -> n * (hd - 48) + go (n * 10) tl
+    end
+  in
+  go 1 ls
+
+let tokenize_int s = match_sequence s (fun c -> 48 <= c && c <= 57) (fun ls -> `TokInt (make_int ls))
 let tokenize_var s = match_sequence s (fun c -> 65 <= c && c <= 90 || 97 <= c && c <= 122) (fun i -> `TokVar i)
 
-let rec compose_list (ls : list (string -> TokResult)) : string -> TokResult =
+let compose f g chars =
+  match f chars with
+  | `Success x -> `Success x
+  | `Failure _ -> g chars
+  end
+
+let rec compose_list (ls : list (string -> lex_result)) : string -> lex_result =
   match ls with
   | [] -> fun x -> `Failure 1
   | hd :: tl -> compose hd (compose_list tl)
   end
 
-let rec lex_token (file: string) : list Token =
+let Result = struct
+  let t a = `Ok of a | `Error of int
+  let map x f = match x with `Ok a -> `Ok (f a) | _ -> x end
+end
+
+let rec lex_tokens (file : string) : Result.t (list token) =
   let token =
     compose_list
       [ tokenize_mult
@@ -116,18 +135,24 @@ let rec lex_token (file: string) : list Token =
       ; tokenize_before
       ; tokenize_int
       ; tokenize_var
+      ; tokenize_eof
       ] file
   in
   match token with
-  | `Success x -> x.tok :: lex_token x.s
-  | `Failure y -> [`Invalid y]
+  | `Success x ->
+    match x.tok with
+    | `TokEof () -> `Ok [x.tok]
+    | _ ->
+      let.Result.map rem = lex_tokens x.rem in
+      x.tok :: rem
+    end
+  | `Failure y -> `Error y
   end
 
-(* Parse the integer four. Because of splaying, we cannot verify this actually evaluates to [ `TokInt [ 52 ] ; `Invalid  ]. *)
-let four = lex_token [52;32;-1]
+(* Parse the integer four. *)
+let four = lex_tokens [52;32;eof]
 
-(* This only works when not type splaying. So turn off splaying, and see no error here! *)
-(* let _ =
+let _ =
   match four with
-  | `TokInt (a :: []) :: `Invalid _ :: [] -> assert (a == 52)
-  end *)
+  | `Ok (`TokInt i :: `TokEof () :: []) -> assert (i == 4)
+  end
