@@ -1,0 +1,395 @@
+(* TEST
+  include exhaust;
+*)
+
+(*
+  A small graph library.
+*)
+
+let Option = struct
+  let t a =
+    | `Some of a
+    | `None of unit
+end
+
+let None = `None ()
+
+let List = struct
+  let rec append (type a) (xs : list a) (ys : list a) : list a =
+    match xs with
+    | [] -> ys
+    | x :: rest -> x :: append a rest ys
+    end
+
+  let rec map (type a b) (f : a -> b) (xs : list a) : list b =
+    match xs with
+    | [] -> []
+    | x :: rest -> f x :: map a b f rest
+    end
+
+  let rec filter (type a) (p : a -> bool) (xs : list a) : list a =
+    match xs with
+    | [] -> []
+    | x :: rest ->
+      if p x then
+        x :: filter a p rest
+      else
+        filter a p rest
+    end
+
+  let rec fold_left (type a acc) (f : acc -> a -> acc) (init : acc) (xs : list a) : acc =
+    match xs with
+    | [] -> init
+    | x :: rest -> fold_left a acc f (f init x) rest
+    end
+
+  let rec mem (type a) (eq : a -> a -> bool) (x : a) (xs : list a) : bool =
+    match xs with
+    | [] -> false
+    | y :: rest -> eq x y || mem a eq x rest
+    end
+
+  let rec assoc (type a b) (eq : a -> a -> bool) (key : a) (xs : list (a * b)) : Option.t b =
+    match xs with
+    | [] -> None
+    | (k, v) :: rest ->
+      if eq key k then
+        `Some v
+      else
+        assoc a b eq key rest
+    end
+
+  let rec remove (type a) (eq : a -> a -> bool) (x : a) (xs : list a) : list a =
+    match xs with
+    | [] -> []
+    | y :: rest ->
+      if eq x y then
+        remove a eq x rest
+      else
+        y :: remove a eq x rest
+    end
+
+  let rec rev (type a) (xs : list a) (acc : list a) : list a =
+    match xs with
+    | [] -> acc
+    | x :: rest -> rev a rest (x :: acc)
+    end
+
+  let rev (type a) (xs : list a) : list a =
+    rev a xs []
+end
+
+let List1 a = struct
+  let append = List.append a
+  let filter = List.filter a
+  let mem = List.mem a
+  let remove = List.remove a
+  let rev = List.rev a
+end
+
+let fst x = match x with (a, _) -> a end
+let snd x = match x with (_, b) -> b end
+
+let GRAPH' v = sig
+  val V : sig
+    val t := v
+    val equal : t -> t -> bool
+  end
+  val v := V.t
+
+  val E : sig
+    val t : type
+  end
+  val e := E.t
+
+  val L := List1 v
+
+  val t : type
+  val empty : t
+  val vertices : t -> list v
+  val successors : t -> v -> list v
+  val add_edge : t -> v -> v -> t
+  val add_vertex : t -> v -> t
+end
+
+let AdjacencyList (type vertex) (equal_vertex : vertex -> vertex -> bool) : GRAPH' vertex = struct
+  let V = struct
+    let t = vertex
+    let equal = equal_vertex
+  end
+  let v = V.t
+
+  let E = struct
+    let t = v * list v
+    let assoc = List.assoc v (list v) V.equal
+  end
+  let e = E.t
+
+  let L = List1 v
+
+  let t = { nodes : list v ; edges : list e }
+
+  let empty = { nodes = [] ; edges = [] }
+
+  let add_vertex (g : t) (v : v) : t =
+    if L.mem V.equal v g.nodes then
+      g
+    else
+      { nodes = v :: g.nodes
+      ; edges = (v, []) :: g.edges
+      }
+
+  let successors g v =
+    match E.assoc v g.edges with
+    | `None () -> []
+    | `Some nbhd -> nbhd
+    end
+
+  let add_edge (g : t) (src : v) (dst : v) : t =
+    let g = add_vertex (add_vertex g src) dst in
+    let old = successors g src in
+    let new_edge =
+      (src, if L.mem V.equal dst old then old else dst :: old)
+    in
+    let edges =
+      new_edge :: List.filter e (fun e -> not (V.equal (fst e) src)) g.edges
+    in
+    { nodes = g.nodes ; edges }
+
+  let vertices g = g.nodes
+end
+
+(* We do not have a notion of `include`, so we spell this out *)
+let GRAPH = sig
+  val V : sig
+    val t : type
+    val equal : t -> t -> bool
+  end
+  val v := V.t
+
+  val E : sig
+    val t : type
+  end
+  val e := E.t
+
+  val L := List1 v
+
+  val t : type
+  val empty : t
+  val vertices : t -> list v
+  val successors : t -> v -> list v
+  val add_edge : t -> v -> v -> t
+  val add_vertex : t -> v -> t
+end
+
+(* Because we are semantically typed, we do not actually have to use GRAPH'
+  to say that the vertex type is equal. We do not have any abstracton here, so
+  just GRAPH is enough. *)
+let EdgeList (type vertex) (equal_vertex : vertex -> vertex -> bool) : GRAPH = struct
+  let V = struct
+    let t = vertex
+    let equal = equal_vertex
+  end
+  let v = V.t
+
+  let E = struct
+    let t = v * v
+    let assoc = List.assoc v v V.equal
+    let equal x y =
+      match x, y with
+      | (a, b), (c, d) -> V.equal a c && V.equal b d
+      end
+  end
+  let e = E.t
+
+  let L = List1 v
+
+  let t = { nodes : list v ; edges : list e }
+
+  let empty = { nodes = [] ; edges = [] }
+
+  let add_vertex (g : t) (v : v) : t =
+    if L.mem V.equal v g.nodes then
+      g
+    else
+      { edges = g.edges ; nodes = v :: g.nodes }
+
+  let add_edge (g : t) (src : v) (dst : v) : t =
+    let g = add_vertex (add_vertex g src) dst in
+    if List.mem e E.equal (src, dst) g.edges then
+      g
+    else
+      { nodes = g.nodes ; edges = (src, dst) :: g.edges }
+
+  let vertices g = g.nodes
+
+  let successors g v =
+    let outgoing =
+      List.filter E.t (fun e -> V.equal (fst e) v) g.edges
+    in
+    List.map E.t V.t snd outgoing
+end
+
+(* Now various uses of graphs *)
+
+let reachable (dep G : GRAPH) (g : G.t) (src : G.v) (dst : G.v) : bool =
+  let rec visit (work : list G.v) (seen : list G.v) : bool =
+    match work with
+    | [] -> false
+    | x :: rest ->
+      if G.V.equal x dst then
+        true
+      else if G.L.mem G.V.equal x seen then
+        visit rest seen
+      else
+        visit (G.L.append (G.successors g x) rest) (x :: seen)
+    end
+  in
+  visit [src] []
+
+let reachable_vertices (dep G : GRAPH) (g : G.t) (src : G.v) : list G.v =
+  let rec visit (work : list G.v) (seen : list G.v) : list G.v =
+    match work with
+    | [] -> G.L.rev seen
+    | x :: rest ->
+      if G.L.mem G.V.equal x seen then
+        visit rest seen
+      else
+        visit (G.L.append (G.successors g x) rest) (x :: seen)
+    end
+  in
+  visit [src] []
+
+let bfs (dep G : GRAPH) (g : G.t) (src : G.v) : list G.v =
+  let rec loop (queue : list G.v) (seen : list G.v) (out : list G.v) : list G.v =
+    match queue with
+    | [] -> G.L.rev out
+    | x :: rest ->
+      if G.L.mem G.V.equal x seen then
+        loop rest seen out
+      else
+        let next =
+          G.L.filter (fun y ->
+            not (G.L.mem G.V.equal y (x :: seen))
+          ) (G.successors g x)
+        in
+        loop (G.L.append rest next) (x :: seen) (x :: out)
+    end
+  in
+  loop [src] [] []
+
+let find_path (dep G : GRAPH) (g : G.t) (src : G.v) (dst : G.v) : Option.t (list G.v) =
+  let item = G.v * list G.v in
+  let rec search (work : list item) (seen : list G.v) : Option.t (list G.v) =
+    match work with
+    | [] -> None
+    | (x, path) :: rest ->
+      if G.V.equal x dst then
+        `Some (G.L.rev path)
+      else if G.L.mem G.V.equal x seen then
+        search rest seen
+      else
+        let next =
+          List.map G.v item (fun y -> (y, y :: path)) (G.successors g x)
+        in
+        search (List.append item next rest) (x :: seen)
+    end
+  in
+  search [(src, [src])] []
+
+let has_cycle (dep G : GRAPH) (g : G.t) : bool =
+  let v = G.v in
+  let mem = G.L.mem G.V.equal in
+  let rec visit (x : v) (active : list v) (finished : list v) : bool * list v =
+    if mem x active then
+      (true, finished)
+    else if mem x finished then
+      (false, finished)
+    else
+      let rec children (nbhd : list v) (done : list v) : bool * list v =
+        match nbhd with
+        | [] -> (false, x :: done)
+        | y :: rest ->
+          match visit y (x :: active) done with
+          | cycle, done2 ->
+            if cycle then
+              (true, done2)
+            else
+              children rest done2
+          end
+        end
+      in
+      children (G.successors g x) finished
+  in
+  let rec roots (vs : list v) (finished : list v) : bool =
+    match vs with
+    | [] -> false
+    | v :: rest ->
+      if mem v finished then
+        roots rest finished
+      else
+        match visit v [] finished with
+        | cycle, finished2 ->
+          cycle || roots rest finished2
+        end
+    end
+  in
+  roots (G.vertices g) []
+
+let topological_sort (dep G : GRAPH) (g : G.t) : Option.t (list G.v) =
+  let v = G.v in
+  let mem = G.L.mem G.V.equal in
+  let rec visit (x : v) (active : list v) (finished : list v) : Option.t (list v) =
+    if mem x active then
+      None
+    else if mem x finished then
+      `Some finished
+    else
+      let rec children (nbhd : list v) (done : list v) : Option.t (list v) =
+        match nbhd with
+        | [] -> `Some (x :: done)
+        | y :: rest ->
+          match visit y (x :: active) done with
+          | `None () -> None
+          | `Some done2 -> children rest done2
+          end
+        end
+      in
+      children (G.successors g x) finished
+  in
+  let rec roots (vs : list v) (finished : list v) : Option.t (list v) =
+    match vs with
+    | [] -> `Some (G.L.rev finished)
+    | v :: rest ->
+      match visit v [] finished with
+      | `None () -> None
+      | `Some done2 -> roots rest done2
+      end
+    end
+  in
+  roots (G.vertices g) []
+
+let indegrees (dep G : GRAPH) (g : G.t) : list (G.v * int) =
+  let v = G.v in
+  let initial = List.map v (v * int) (fun v -> (v, 0)) (G.vertices g) in
+  let rec increment (xs : list (v * int)) (dst : v) : list (v * int) =
+    match xs with
+    | [] -> []
+    | (v, n) :: rest ->
+      if G.V.equal v dst then
+        (v, n + 1) :: rest
+      else
+        (v, n) :: increment rest dst
+    end
+  in
+  let rec edges (vs : list v) (acc : list (v * int)) : list (v * int) =
+    match vs with
+    | [] -> acc
+    | src :: rest ->
+      let acc =
+        List.fold_left v (list (v * int)) increment acc (G.successors g src)
+      in
+      edges rest acc
+    end
+  in
+  edges (G.vertices g) initial
