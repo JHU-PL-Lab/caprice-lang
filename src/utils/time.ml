@@ -5,12 +5,11 @@ let time f x =
   Mtime_clock.count c, res
 
 let of_float_sec float_sec =
-  let s_per_ns = Mtime.Span.to_float_ns Mtime.Span.s /. Mtime.Span.to_float_ns Mtime.Span.ns in
+  let s_per_ns = Mtime.Span.to_float_ns Mtime.Span.s in
   Mtime.Span.of_float_ns (float_sec *. s_per_ns)
 
 let convert_span span ~to_ =
-  let ns_per_t = Mtime.Span.to_float_ns Mtime.Span.ns /. Mtime.Span.to_float_ns to_ in
-  Mtime.Span.to_float_ns span *. ns_per_t
+  Mtime.Span.to_float_ns span /. Mtime.Span.to_float_ns to_
 
 let span_to_ms = convert_span ~to_:Mtime.Span.ms
 
@@ -31,9 +30,7 @@ let yield_to_timer () = Effect.perform Check_timeout
 
 let with_timeout span f a =
   let timer = Mtime_clock.counter () in
-  try
-    Ok (f a)
-  with
+  match f a with
   | effect Check_timeout, k ->
     let t = Mtime_clock.count timer in
     if Mtime.Span.is_longer t ~than:span then
@@ -42,3 +39,4 @@ let with_timeout span f a =
       | Timeout -> Error t
     else
       Effect.Deep.continue k ()
+  | x -> Ok x
