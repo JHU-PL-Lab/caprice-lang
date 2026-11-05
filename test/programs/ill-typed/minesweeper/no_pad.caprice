@@ -1,0 +1,110 @@
+(* TEST
+  include refute;
+*)
+
+(* The goal is to count the number of mines around each cell. *)
+
+let cell = `Mine of unit | `Empty of unit
+
+let count = `Mine of unit | `Count of int
+
+let Mine = `Mine ()
+let Empty = `Empty ()
+
+let List = struct
+  let rec fold_left (type a acc) (f : acc -> a -> acc) (init : acc) (ls : list a) : acc =
+    match ls with
+    | [] -> init
+    | hd :: tl -> fold_left a acc f (f init hd) tl
+    end
+
+  let forall (type a) (f : a -> bool) (ls : list a) : bool =
+    fold_left a bool (fun b x -> b && f x) true ls
+
+  let len (type a) (ls : list a) : int =
+    fold_left a int (fun n _ -> n + 1) 0 ls
+
+  let rec snoc (type a) (ls : list a) (x : a) : list a =
+    match ls with
+    | [] -> [x]
+    | hd :: tl -> hd :: snoc a tl x
+    end
+
+  let rec map (type a b) (f : a -> b) (ls : list a) : list b =
+    match ls with
+    | [] -> []
+    | hd :: tl -> f hd :: map a b f tl
+    end
+
+  let rev (type a) (ls : list a) : list a =
+    fold_left a (list a) (fun acc x -> x :: acc) [] ls
+end
+
+let Rect = struct
+  let t n m a = { lss : list (list a) |
+    List.len (list a) lss == n &&
+    List.forall (list a) (fun ls -> List.len a ls == m) lss
+  }
+end
+
+let Grid = struct
+  let t a = { lss : list (list a) |
+    let n = List.len (list a) lss in
+    List.forall (list a) (fun ls -> List.len a ls == n) lss
+  }
+
+  let dimension (type a) (grid : t a) : int =
+    List.len (list a) grid
+end
+
+let Board = struct
+  let t = { grid : Grid.t cell | Grid.dimension cell grid > 0 }
+end
+
+let num_mines (ls : list cell) : int =
+  List.fold_left cell int (fun n c ->
+    match c with
+    | `Mine () -> n + 1
+    | _ -> n
+    end
+  ) 0 ls
+
+let map_rows a f rect =
+  List.map (list a) (list a) f rect
+
+let pad (dep n : int | n > 0) (dep m : int | m > 0) (rect : Rect.t n m cell)
+    : Rect.t (n + 2) (m + 2) cell =
+  let rec empties (x : int | x >= 0) : list cell =
+    if x == 0 then [] else Empty :: empties (x - 1)
+  in
+  let pad row = Empty :: List.snoc cell row Empty in
+  let empty_row = empties (m + 2) in
+  empty_row :: List.snoc (list cell) (map_rows cell pad rect) empty_row
+
+let annotate (board : Board.t) : Grid.t count =
+  let n = Grid.dimension cell board in
+  let rec annotate rect acc_row rem_rows =
+    match rect with
+    | _ :: _ :: [] ->
+      []
+    | (_ :: _ :: []) :: _ ->
+      match rem_rows with
+      | _ :: tl ->
+        List.rev count acc_row :: annotate rem_rows [] tl
+      end
+    | (ul :: (u :: ur :: _ as utl)) ::
+      ( l :: (c ::  r :: _ as  tl)) :: (* c is the subject of interest *)
+      (bl :: (b :: br :: _ as btl)) :: rem ->
+      let rect = utl :: tl :: btl :: rem in
+      match c with
+      | `Mine () -> annotate rect (Mine :: acc_row) rem_rows
+      | `Empty () ->
+        let x = num_mines [ul;u;ur;l;r;bl;b;br] in
+        annotate rect (`Count x :: acc_row) rem_rows
+      end
+    end
+  in
+  (* ERROR: forgot to pad the board *)
+  match board with
+  | _ :: rem_rows -> annotate board [] rem_rows
+  end
