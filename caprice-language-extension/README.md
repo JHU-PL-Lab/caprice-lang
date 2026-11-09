@@ -1,7 +1,7 @@
 
 # Caprice syntax highlighter
 
-This highlighter attempts to mimic OCaml Platform but without a language server.
+This highlighter for VS Code attempts to mimic OCaml Platform but without a language server.
 
 For example, it makes approximations using regular expressions to highlight "function calls".
 
@@ -28,9 +28,9 @@ as a VS Code extension.
     Answer `y`/`yes` to questions about missing licenses.
 4. Run
     ```
-    code --install-extension caprice-language-0.0.0.vsix
+    code --install-extension caprice-language-0.0.10.vsix
     ```
-    or whatever version we're currently on (not just `0.0.0` every time).
+    or whatever version we're currently on (not just `0.0.10` every time).
 
 To make changes and reinstall, only run the last two commands. Note you either need to
 uninstall the previous version, or increment the version number.
@@ -50,10 +50,14 @@ code --uninstall-extension undefined_publisher.caprice-language
 Also uninstall from npm with
 
 ```sh
-npm uninstall caprice-language@0.0.0
+npm uninstall caprice-language@0.0.10
 ```
 
 or whatever version(s) you have installed.
+
+## The Language Server
+
+WIth the Caprice syntax highlighter installed, your VS Code IDE now recognizes Caprice as a language. You can then install the language server in `../caprice-lsp` for a programming environment.
 
 ## Disclaimers
 
@@ -62,5 +66,5 @@ The icon is based on an original hand-drawn sketch and is free to use. It has be
 The icon has been set as a fallback to whatever icon theme you're using. As long
 as your theme does not define an icon for `.caprice` files, the provided icon is used.
 
-The code for this highlighter has nearly all been written with Claude 4. No person
+The code for this highlighter has nearly all been written with Claude 4 from a chat window. No person
 claims credit for this syntax highlighter.
