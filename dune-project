@@ -8,9 +8,9 @@
 
 (license MIT)
 
-(authors "Brandon Stride <bstride1@jhu.edu")
+(authors "Anonymous authors")
 
-(maintainers "Brandon Stride <bstride1@jhu.edu")
+(maintainers "Anonymous maintainers")
 
 (package
  (name caprice)
