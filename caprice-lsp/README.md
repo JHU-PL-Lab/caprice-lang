@@ -9,12 +9,16 @@ The following are a few very rough instructions to install the language server a
 Prerequisite: you must have the Caprice language extension installed. See `../caprice-language-extension/README.md`.
 
 1. Navigate to the `caprice-lsp` directory (the one this README is in).
-2. (Begin from here to reinstall after upgrades) Then do
+2. Install the package dependencies and compile:
+    ```
+    npm install
+    ```
+3. (Begin from here to reinstall after upgrades) Then do
     ```
     vsce package --allow-missing-repository
     ```
     Answer `y`/`yes` to questions about missing licenses.
-3. Run
+4. Run
     ```
     code --install-extension caprice-lsp-1.1.1.vsix
     ```
