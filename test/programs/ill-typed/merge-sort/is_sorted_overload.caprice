@@ -46,7 +46,7 @@ let rec merge (p : sorted_list) (q : sorted_list) : sorted_list =
     else y :: merge p q_tl
   end
 
-let rec merge_sort (ls : sorted_list) : sorted_list =
+let rec merge_sort (ls : list int) : sorted_list =
   match ls with
   | [] | _ :: [] -> ls
   | _ ->
