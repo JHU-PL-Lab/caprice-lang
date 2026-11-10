@@ -62,6 +62,8 @@ All of the possible messages are as follows:
 - `Timeout`: no error was found within the allowed time, so the program may still be ill-typed.
 - `Unknown`: the SMT solver failed to return an answer quickly for some query, so some program path was skipped, but no error was found otherwise; the program may still be ill-typed.
 
+See the full options by running `./typecheck.exe --help`.
+
 ## Benchmarking
 
 For benchmarking, it is recommended to use a compiler switch with flambda for better optimization. This can have massive implications for performance.
@@ -134,7 +136,7 @@ Finished in 9035.835 ms and 1664715 attempted refutations:
 We benchmarked it in the paper by taking 15 trials (this may take a while):
 
 ```cmd
-./typecheck.exe ./test/programs/ill-typed/interp/forgot_eval_arg.caprice --trials15 -s never -r -t 600
+./bench.exe ./test/programs/ill-typed/interp/forgot_eval_arg.caprice --trials 15 -s never -r -t 600
 ```
 
 The other program, `./test/programs/ill-typed/interp/eval_true_body.caprice`, sometimes terminates, and sometimes runs out of memory when given enough time.
