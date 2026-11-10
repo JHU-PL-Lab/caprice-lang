@@ -14,6 +14,7 @@
 
 (package
  (name caprice)
+ (synopsis "The Caprice language")
  (description "Semantic type refutation via concolic semantics")
  (depends
   alcotest
