@@ -15,6 +15,7 @@ Via opam, install OCaml 5.5 and then install the dependencies. Answer y/yes to a
 ```cmd
 opam update
 opam switch create 5.5.2
+eval $(opam env)
 opam install . --deps-only
 ```
 
@@ -68,6 +69,7 @@ For benchmarking, it is recommended to use a compiler switch with flambda for be
 ```cmd
 opam update
 opam switch create 5.5+flambda 5.5.2+options ocaml-option-flambda
+eval $(opam env)
 opam install . --deps-only
 ```
 
