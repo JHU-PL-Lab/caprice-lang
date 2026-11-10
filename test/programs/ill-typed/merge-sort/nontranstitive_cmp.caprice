@@ -57,7 +57,7 @@ let rec merge_sort (ls : sorted_list int icmp) : sorted_list int icmp =
   end
 
 (* ERROR: cmp is not necessarily transitive here, either *)
-let rec merge_sort (type a) (dep cmp : a -> a -> int) (ls : sorted_list a cmp) : sorted_list a cmp =
+let rec merge_sort (type a) (dep cmp : a -> a -> int) (ls : list a) : sorted_list a cmp =
   match ls with
   | [] | _ :: [] -> ls
   | _ ->
