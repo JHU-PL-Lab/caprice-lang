@@ -64,7 +64,13 @@ let main_solve (module Oracle : SOLVABLE) : 'k solver = fun e ->
     assert (
       match solution with
       | Solution.Unknown -> true
-      | Sat model -> Formula.eval ~default:(fun _ -> assert false) model e
+      | Sat model ->
+        (* In case any assignment works for a symbol, we may simplify away the
+          formula, but then we need a default value when evaluating. *)
+        let default (type a) (s : (a, 'k) Symbol.t) : a =
+          match s with I _ -> 0 | B _ -> false
+        in
+        Formula.eval ~default model e
       | Unsat -> Solution.Unsat = direct_solve (module Oracle) e
     )
   in

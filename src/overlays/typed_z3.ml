@@ -36,20 +36,21 @@ module Make_of_context (C : CONTEXT) : Solve.SOLVABLE = struct
   let not_ (e : (bool, 'k) t) : (bool, 'k) t =
     Z3.Boolean.mk_not ctx e
 
-  let list_curry f x y = f [ x ; y ]
-
-  let rec binop : type a b c. (a * a * b, c) Binop.c -> (a, 'k) t -> (a, 'k) t -> (b, 'k) t = function
-    | Plus            -> list_curry @@ Z3.Arithmetic.mk_add ctx
-    | Minus           -> list_curry @@ Z3.Arithmetic.mk_sub ctx
-    | Times           -> list_curry @@ Z3.Arithmetic.mk_mul ctx
-    | Less_than       -> Z3.Arithmetic.mk_lt ctx
-    | Less_than_eq    -> Z3.Arithmetic.mk_le ctx
-    | Greater_than    -> Z3.Arithmetic.mk_gt ctx
-    | Greater_than_eq -> Z3.Arithmetic.mk_ge ctx
-    | Equal | Iff     -> Z3.Boolean.mk_eq ctx
-    | Not_equal       -> fun a b -> not_ (Z3.Boolean.mk_eq ctx a b)
+  let rec binop
+    : type a b c. (a * a * b, c) Binop.c -> (a, 'k) t -> (a, 'k) t -> (b, 'k) t
+    = fun op x y ->
+    match op with
+    | Plus            -> Z3.Arithmetic.mk_add ctx [x; y]
+    | Minus           -> Z3.Arithmetic.mk_sub ctx [x; y]
+    | Times           -> Z3.Arithmetic.mk_mul ctx [x; y]
+    | Less_than       -> Z3.Arithmetic.mk_lt ctx x y
+    | Less_than_eq    -> Z3.Arithmetic.mk_le ctx x y
+    | Greater_than    -> Z3.Arithmetic.mk_gt ctx x y
+    | Greater_than_eq -> Z3.Arithmetic.mk_ge ctx x y
+    | Equal | Iff     -> Z3.Boolean.mk_eq ctx x y
+    | Not_equal       -> not_ (Z3.Boolean.mk_eq ctx x y)
     (* OCaml division and modulus differ from Z3, so we need some extra encoding *)
-    | Divide -> fun x y ->
+    | Divide ->
       let q_div = Z3.Arithmetic.mk_div ctx x y
       and q_mod = Z3.Arithmetic.Integer.mk_mod ctx x y in
       let adjusted =
@@ -62,7 +63,7 @@ module Make_of_context (C : CONTEXT) : Solve.SOLVABLE = struct
           [ binop Equal q_mod zero ; binop Greater_than_eq x zero ]
       in
       Z3.Boolean.mk_ite ctx cond q_div adjusted
-    | Modulus -> fun x y ->
+    | Modulus ->
       binop Minus x (binop Times y (binop Divide x y))
 
   let is_const (type a) (x : (a, 'k) t) : bool =

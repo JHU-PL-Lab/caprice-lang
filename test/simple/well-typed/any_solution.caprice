@@ -1,0 +1,11 @@
+
+let f (x : int) (y : int) ~> int =
+  ifzero input + 1 then
+    (* Any value for y hits this branch. The SMT simplifier should
+      simplify it away, but not fail on unbound variable. *)
+    if x + y == y then
+      0
+    else
+      10
+  else
+    20
