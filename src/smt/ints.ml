@@ -2,7 +2,8 @@
 (* Raised when any bound is unsatisfiable. *)
 exception Unsat
 
-module IntSet = Set.Make (Int)
+module Ints = Utils.Set_map.Make_W (Int)
+module IntSet = Ints.Set
 
 module Bounds = struct
   type t =
@@ -102,10 +103,9 @@ module Bounds = struct
           Formula.binop Less_than_eq variable (Formula.const_int value)
         ) upper
       and excluded_clauses =
-        IntSet.fold (fun value clauses ->
+        IntSet.list_map (fun value ->
           Formula.not_ (Formula.binop Equal variable (Formula.const_int value))
-          :: clauses
-        ) bounds.excluded []
+        ) bounds.excluded
       in
       List.filter_map Fun.id [ lower_clause ; upper_clause ] @ excluded_clauses
 end
